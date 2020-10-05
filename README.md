@@ -1,4 +1,7 @@
-# CAIFRanking
+# CAIFRanking Stability
+
+This fork is dedicated to studying the stability of fair rankings.
+
 
 ### Prerequisite for language
 
