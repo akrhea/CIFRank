@@ -130,3 +130,6 @@ dmypy.json
 
 # R History
 .Rhistory
+
+# Environment
+CAIFRanking/
