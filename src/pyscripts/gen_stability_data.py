@@ -433,6 +433,7 @@ def sampling_distribution(s_samples, # number of original dataset samples
                             n_runs, # number of re-rankings to sample from noise distribution of each sample
                             M_rows, # number of rows in dataset
                             x_err_input, y_err_input, # which nodes receive noise as input (X and/or Y)
+                            output_dir='default', # folder within out/synthetic_data/stability/
                             seed=0, # initial seed for race (all other seeds based on this)
                             x_err_mu=0, x_err_sd=1, # X-noise settings
                             y_err_mu=0, y_err_sd=1, # Y-noise settings
@@ -440,8 +441,8 @@ def sampling_distribution(s_samples, # number of original dataset samples
                             x_base_mu_0=-1, x_base_sd_0=1, # lsat settings
                             x_base_mu_1=0, x_base_sd_1=0.5, # more lsat settings
                             y_a_weight=0.4, y_x_weight=0.8, # gpa settings
-                            normalize=True, # whether to rescale X and Y to [0,1])
-                            output_dir='default'): # folder within out/synthetic_data/stability/
+                            normalize=True): # whether to rescale X and Y to [0,1])
+                            
 
     '''
     Generate s_samples of original dataset, save each to CSV
@@ -484,6 +485,7 @@ if __name__ == "__main__":
     parser.add_argument("--x_err_input", type=bool)
     parser.add_argument("--y_err_input", type=bool)
     
+    parser.add_argument("--output_dir", type=str, default='default')
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--x_err_mu", type=float, default=0)
     parser.add_argument("--x_err_sd", type=float, default=1)
@@ -497,7 +499,7 @@ if __name__ == "__main__":
     parser.add_argument("--y_a_weight", type=float, default=0.4)
     parser.add_argument("--y_x_weight", type=float, default=0.8)
     parser.add_argument("--normalize", type=bool, default=True)
-    parser.add_argument("--output_dir", type=str, default='default')
+    
 
     args = parser.parse_args()
 
