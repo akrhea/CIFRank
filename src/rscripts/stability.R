@@ -1,35 +1,69 @@
 # args = commandArgs(trailingOnly=TRUE)
 #output_p <- args[1]
 # run_n <- args[2]
-run_n <- 100
+s_samples <- 100
 
-for (i in 1:run_n) {
-  
+params.x <- data.frame(a=numeric(s_samples), 
+                          intercept=numeric(s_samples))
+
+params.y <- data.frame(a=numeric(s_samples), 
+                          x=numeric(s_samples),
+                          intercept=numeric(s_samples))
+
+for (i in 1:s_samples) {
+
   # need to update filepath formats if script run from bash script
   data_i <- read.csv(paste(dirname(dirname(getwd())),
                    '/out/synthetic_data/stability/default/data/observed_samp_',
                    i,'.csv',
                    sep=''))
   
-  # estimate x parameters with lin reg
-  model.x <- lm(x ~ a - 1, data = data_i)
+  # estimate model for x with lin reg
+  model.x <- lm(x ~ a, data = data_i)
+  coefs.x <- coef(summary(model.x))
   
-  # save x parameters to csv
-  # need to save anything except estimate? [ Std. error, t value, Pr(>|t|) ]
-  write.csv(data.frame(summary(model.x)$coefficients),
-           file=paste(dirname(dirname(getwd())),
-                      '/out/parameter_data/stability/default/',
-                      "R", i, "_x.csv", sep=''))
+  params.x$a[i]  <- tryCatch({coefs.x['a', 'Estimate']},
+                              error=function(e) { # catch error
+                                message(paste('Attribute A may take only one ',
+                                              'value in sample ', 
+                                              i, '.', sep=''))
+                                message(paste('Original error message:', e))
+                                return(0)})
+
+  params.x$intercept[i] <- coefs.x['(Intercept)', 'Estimate']
   
-  # estimate y parameters with lin reg
-  model.y <- lm(y ~ x + a - 1 , data = data_i)
+  # estimate model for y with lin reg
+  model.y <- lm(y ~ x + a, data = data_i)
+  coefs.y <- coef(summary(model.y))
   
-  # save t parameters to csv
-  write.csv(data.frame(summary(model.y)$coefficients),
-            file=paste(dirname(dirname(getwd())),
-                       '/out/parameter_data/stability/default/',
-                       "R", i, "_y.csv", sep=''))
+  params.y$a[i]  <- tryCatch({coefs.y['a', 'Estimate']},
+                             error=function(e) { # catch error
+                               message(paste('Attribute A may take only one ',
+                                             'value in sample ', 
+                                             i, '.', sep=''))
+                               message(paste('Original error message:', e))
+                               return(0)})
+  
+  params.y$x[i]  <- tryCatch({coefs.y['x', 'Estimate']},
+                             error=function(e) { # catch error
+                               message(paste('Attribute X may take only one ',
+                                             'value in sample ', 
+                                             i, '.', sep=''))
+                               message(paste('Original error message:', e))
+                               return(0)})
+  
+  params.y$intercept[i] <- coefs.y['(Intercept)', 'Estimate']
 
   print(paste("Done causal model estimation of synthetic data trial ", i))
 }
+
+# save dataframe of x parameters to csv
+write.csv(params.x, file=paste(dirname(dirname(getwd())),
+                          '/out/parameter_data/stability/default/params_x.csv',
+                          sep=''))
+
+# save dataframe of y parameters to csv
+write.csv(params.y, file=paste(dirname(dirname(getwd())),
+                                  '/out/parameter_data/stability/default/params_y.csv',
+                                  sep=''))
 
