@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 from numpy.random import normal, binomial
 from itertools import combinations, product
 from functools import partial
+import os
+import pathlib
 
 '''
 Generate data
@@ -121,7 +123,7 @@ def calc_rank(seed, y):
     T = [(y[i], i) for i in range(len(y))] 
     
     # Sort T according to first element 
-    T.sort(key=lambda x: x[0])
+    T.sort(key=lambda x: x[0], reverse=True)
 
     # Loop through items in T
     i=0
@@ -242,15 +244,14 @@ def gen_data_and_sample_noise(n_runs, # number of re-rankings to sample
                                 x_base_mu_1=0, x_base_sd_1=0.5, # more lsat settings
                                 y_a_weight=0.4, y_x_weight=0.8, # gpa settings
                                 normalize=True, # whether to rescale X and Y to [0,1])
-                                data_output_dir='.../out/synthetic_data/seed_control/default/data/', # where to save original dataset
+                                output_dir='default', # folder within out/synthetic_data/stability/
                                 data_filename='unobserved_samp_1.csv', # name of original dataset file
                                 save_rankings=False, # whether to save rankings to CSV
-                                rankings_output_dir='.../out/synthetic_data/seed_control/default/rankings/', # where to save rankings
                                 rankings_filename='unobserved_samp_1.csv'): # name of rankings file
                                 
     '''
     Generate original dataset and save to CSV
-    Generate n_runs additional datasets by re-sampling on the noise
+    Generate n_runs additional datasets by re-sampling the noise
     '''
 
     # Set initial seeds
@@ -260,8 +261,9 @@ def gen_data_and_sample_noise(n_runs, # number of re-rankings to sample
     y_err_seed=(n_runs+1)*2+rank_seed # will not be used unless y_err_input==True
 
     # Set output filepaths
-    data_output_filepath = data_output_dir+data_filename
-    rankings_output_filepath = rankings_output_dir+rankings_filename
+    base_output_dir = pathlib.Path(__file__).parents[2] / 'out' / 'synthetic_data' / 'stability' / output_dir
+    data_output_filepath = base_output_dir / 'data' / data_filename
+    rankings_output_filepath = base_output_dir / 'rankings' / rankings_filename
 
     # Create partial data generation function
     # Include all params that will remain constant during noise sampling
@@ -354,13 +356,13 @@ def resample_noise_from_data(n_runs, # number of re-rankings to sample
         new_rank = calc_rank(rank_seed, new_y)
         
         # Add this ranking to the original dataframe
-        data['rank_'+str(i+1)] = new_rank
+        orig_data['rank_'+str(i+1)] = new_rank
 
     # Save rankings to CSV if save set to True
     if save:
-        data.to_csv(output_filepath)
+        orig_data.to_csv(output_filepath)
 
-    return data
+    return orig_data
 
 def gen_data_and_resample_noise(n_runs, # number of re-rankings to sample
                                 x_err_input, y_err_input, # which nodes receive noise as input (X and/or Y)
@@ -373,10 +375,9 @@ def gen_data_and_resample_noise(n_runs, # number of re-rankings to sample
                                 x_base_mu_1=0, x_base_sd_1=0.5, # more lsat settings
                                 y_a_weight=0.4, y_x_weight=0.8, # gpa settings
                                 normalize=True, # whether to rescale X and Y to [0,1]):
-                                data_output_dir='..../out/synthetic_data/seed_control/default/data/', # where to save original dataset
+                                output_dir='default', # folder within out/synthetic_data/stability/ 
                                 data_filename='observed_samp_1.csv', # name of original dataset file
                                 save_rankings=True, # whether to save rankings to CSV
-                                rankings_output_dir='..../out/synthetic_data/seed_control/default/rankings/', # where to save rankings
                                 rankings_filename='observed_samp_1.csv'): # name of rankings file
 
     '''
@@ -392,8 +393,9 @@ def gen_data_and_resample_noise(n_runs, # number of re-rankings to sample
     y_err_seed=(n_runs+1)*2+rank_seed # will not be used unless y_err_input==True
 
     # Set output filepaths
-    data_output_filepath = data_output_dir+data_filename
-    rankings_output_filepath = rankings_output_dir+rankings_filename
+    base_output_dir = pathlib.Path(__file__).parents[2] / 'out' / 'synthetic_data' / 'stability' / output_dir
+    data_output_filepath = base_output_dir / 'data' / data_filename
+    rankings_output_filepath = base_output_dir / 'rankings' / rankings_filename
 
     # Generate original dataset with initial seeds
     orig_data = gen_data(y_err_seed=y_err_seed,  x_err_seed=x_err_seed,
@@ -434,8 +436,7 @@ def sampling_distribution(s_samples, # number of original dataset samples
                             x_base_mu_1=0, x_base_sd_1=0.5, # more lsat settings
                             y_a_weight=0.4, y_x_weight=0.8, # gpa settings
                             normalize=True, # whether to rescale X and Y to [0,1])
-                            data_output_dir='.../out/synthetic_data/seed_control/default/data/', # where to save original dataset
-                            rankings_output_dir='.../out/synthetic_data/seed_control/default/rankings/'): # where to save rankings
+                            output_dir='default'): # folder within out/synthetic_data/stability/
 
     '''
     Generate s_samples of original dataset, save each to CSV
@@ -454,9 +455,8 @@ def sampling_distribution(s_samples, # number of original dataset samples
                                                     x_base_mu_1=x_base_mu_1, x_base_sd_1=x_base_sd_1,
                                                     y_a_weight=y_a_weight, y_x_weight=y_x_weight,
                                                     normalize=normalize,
-                                                    data_output_dir=data_output_dir, 
-                                                    save_rankings=True,
-                                                    rankings_output_dir=rankings_output_dir)
+                                                    output_dir=output_dir,
+                                                    save_rankings=True)
     
     # Generate s_samples of original dataset and sample rankings from noise distribution of each
     for i in range(s_samples):
