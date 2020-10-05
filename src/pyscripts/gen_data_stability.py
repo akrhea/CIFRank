@@ -17,6 +17,11 @@ Data-generating process adapted to match mv_m2
 Needs to be debugged
 '''
 
+def rescale(arr, new_min=0, new_max=1):
+    old_min = arr.min()
+    old_max = arr.max()
+    return ((arr-old_min)/(old_max-old_min))*(new_max-new_min)+new_min
+
 def gen_A(seed, M, prob_priv=0.6):
     '''
     Function to generate race (A)
@@ -73,7 +78,7 @@ def gen_X(seed, a, err_input, err=None,
         lsat = lsat + err
 
     # Shift and rescale LSAT score to [120, 180]
-    lsat = ((lsat-lsat.min())/(lsat.max()-lsat.min()))*(180-120)+120
+    lsat = rescale(lsat, new_min=120, new_max=180)
 
     return lsat
     
@@ -101,7 +106,7 @@ def gen_Y(a, x, err_input, err=None,
         gpa = gpa + err
         
     # Rescale GPA to [0, 4]
-    gpa = ((gpa-gpa.min())/(gpa.max()-gpa.min()))*4
+    gpa = rescale(gpa, new_min=0, new_max=4)
     return gpa
 
 def calc_rank(seed, y):
@@ -206,18 +211,21 @@ def gen_data(a_seed, y_err_seed, x_err_seed, x_seed, rank_seed,# random seeds ca
     x = gen_X(seed=x_seed, a=a, err_input = x_err_input, err=x_err,
               base_mu_0=x_base_mu_0, base_sd_0=x_base_sd_0,
               base_mu_1=x_base_mu_1, base_sd_1=x_base_sd_1)
+
+    # Rescale X to [0,1] if normalize is set to True
+    if normalize:
+        x = rescale(x)
     
     # Generate first-year GPA node (Y)
     y = gen_Y(a=a, x=x, err_input = y_err_input, err=y_err,
               a_weight=y_a_weight, x_weight=y_x_weight)
+    
+    # Rescale Y to [0,1] if normalize is set to True
+    if normalize:
+        y = rescale(y)
 
     # Compile columns into dataframe
     data = pd.DataFrame({'a':a, 'x_err': x_err, 'y_err': y_err, 'x':x, 'y':y})
-
-    # Rescale X and Y to [0,1] if normalize is set to True
-    if normalize:
-        data['x'] = (data['x'] - data['x'].min()) / (data['x'].max() - data['x'].min())
-        data['y'] = (data['y'] - data['y'].min()) / (data['y'].max() - data['y'].min())
     
     # Calculate rank
     data['rank'] = calc_rank(rank_seed, y)
