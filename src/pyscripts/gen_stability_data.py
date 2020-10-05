@@ -6,15 +6,12 @@ import matplotlib.pyplot as plt
 from numpy.random import normal, binomial
 from itertools import combinations, product
 from functools import partial
-import os
-import pathlib
+import os, pathlib, argparse
 
 '''
 Generate data
 Adapted from https://github.com/akrhea/CIFRank/blob/master/src/Expected_Kendall_Tau.ipynb
 Data-generating process adapted to match mv_m2
-
-Needs to be debugged
 '''
 
 def rescale(arr, new_min=0, new_max=1):
@@ -176,7 +173,7 @@ def calc_rank(seed, y):
 
 def gen_data(a_seed, y_err_seed, x_err_seed, x_seed, rank_seed,# random seeds can be set seperately
              x_err_input, y_err_input, # which nodes receive noise as input (X and/or Y)
-             M=10, # number of rows in dataset
+             M, # number of rows in dataset
              x_err_mu=0, x_err_sd=1, # X-noise settings
              y_err_mu=0, y_err_sd=1, # Y-noise settings
              prob_priv=0.6, # race setting
@@ -243,7 +240,7 @@ def gen_data(a_seed, y_err_seed, x_err_seed, x_seed, rank_seed,# random seeds ca
 
 def gen_data_and_sample_noise(n_runs, # number of re-rankings to sample
                                 x_err_input, y_err_input, # whether X and Y have noise parents
-                                M=10, # number of rows in dataset
+                                M, # number of rows in dataset
                                 a_seed=0, # seed for race (all other seeds based on this)
                                 x_err_mu=0, x_err_sd=1, # X-noise settings
                                 y_err_mu=0, y_err_sd=1, # Y-noise settings
@@ -374,7 +371,7 @@ def resample_noise_from_data(n_runs, # number of re-rankings to sample
 
 def gen_data_and_resample_noise(n_runs, # number of re-rankings to sample
                                 x_err_input, y_err_input, # which nodes receive noise as input (X and/or Y)
-                                M=10, # number of rows in dataset
+                                M, # number of rows in dataset
                                 a_seed=0, # seed for race (all other seeds based on this)    
                                 x_err_mu=0, x_err_sd=1, # X-noise settings
                                 y_err_mu=0, y_err_sd=1, # Y-noise settings
@@ -434,9 +431,9 @@ def gen_data_and_resample_noise(n_runs, # number of re-rankings to sample
 
 def sampling_distribution(s_samples, # number of original dataset samples
                             n_runs, # number of re-rankings to sample from noise distribution of each sample
+                            M_rows, # number of rows in dataset
                             x_err_input, y_err_input, # which nodes receive noise as input (X and/or Y)
-                            M=10, # number of rows in dataset
-                            a_seed=0, # initial seed for race (all other seeds based on this)
+                            seed=0, # initial seed for race (all other seeds based on this)
                             x_err_mu=0, x_err_sd=1, # X-noise settings
                             y_err_mu=0, y_err_sd=1, # Y-noise settings
                             prob_priv=0.6, # race setting
@@ -454,7 +451,7 @@ def sampling_distribution(s_samples, # number of original dataset samples
     # Create partial function for sampling noise distribution
     # Include all parameters which will remain constant
     gen_data_and_resample_noise_partial = partial(gen_data_and_resample_noise,
-                                                    n_runs=n_runs, M=M,
+                                                    n_runs=n_runs, M=M_rows,
                                                     x_err_input=x_err_input, y_err_input=y_err_input,
                                                     x_err_mu=x_err_mu, x_err_sd=x_err_sd,
                                                     y_err_mu=y_err_mu, y_err_sd=y_err_sd,
@@ -468,11 +465,40 @@ def sampling_distribution(s_samples, # number of original dataset samples
     
     # Generate s_samples of original dataset and sample rankings from noise distribution of each
     for i in range(s_samples):
-        gen_data_and_resample_noise_partial(a_seed=a_seed, 
+        gen_data_and_resample_noise_partial(a_seed=seed, 
                                             data_filename='observed_samp_{}.csv'.format(i+1),
                                             rankings_filename='observed_samp_{}.csv'.format(i+1))
 
         # Increment race seed (which will control all other seeds)
-        a_seed += (n_runs+1)*3+2
+        seed += (n_runs+1)*3+2
 
     return
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description="Run Synthetic Data Generation for Stability Analysis")
+
+    parser.add_argument("--s_samples", type=int)
+    parser.add_argument("--n_runs", type=int)
+    parser.add_argument("--M_rows", type=bool)
+    parser.add_argument("--x_err_input", type=bool)
+    parser.add_argument("--y_err_input", type=bool)
+    
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--x_err_mu", type=float, default=0)
+    parser.add_argument("--x_err_sd", type=float, default=1)
+    parser.add_argument("--y_err_mu", type=float, default=0)
+    parser.add_argument("--y_err_sd", type=float, default=1)
+    parser.add_argument("--prob_priv", type=float, default=0.6)
+    parser.add_argument("--x_base_mu_0", type=float, default=-1)
+    parser.add_argument("--x_base_sd_0", type=float, default=1)
+    parser.add_argument("--x_base_mu_1", type=float, default=0)
+    parser.add_argument("--x_base_sd_1", type=float, default=0.5)
+    parser.add_argument("--y_a_weight", type=float, default=0.4)
+    parser.add_argument("--y_x_weight", type=float, default=0.8)
+    parser.add_argument("--normalize", type=bool, default=True)
+    parser.add_argument("--output_dir", type=str, default='default')
+
+    args = parser.parse_args()
+
+    sampling_distribution(args)
