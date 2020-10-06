@@ -6,8 +6,8 @@ import matplotlib.pyplot as plt
 from numpy.random import normal, binomial
 from itertools import combinations, product
 from functools import partial
-import os, pathlib, argparse
-from utils.stability_utils.py import calc_rank
+import os, pathlib, argparse, sys
+from utils.stability_utils import calc_rank
 
 '''
 Alene Rhea, October 2020
@@ -52,8 +52,8 @@ def gen_Err(seed, M, mu=0, sd=1):
     return normal(loc=mu, scale=sd, size=M)
 
 def gen_X(seed, a, err_input, err=None,
-          base_mu_0=-1, base_sd_0=1, 
-          base_mu_1=0, base_sd_1=0.5):
+          mu_0=-1, sd_0=1, 
+          mu_1=0, sd_1=0.5):
     '''
     Function to generate LSAT scores (X)
     A is parent of X
@@ -61,19 +61,19 @@ def gen_X(seed, a, err_input, err=None,
     If err_input==False, then A is the only parent of X
     If err_input==True, then Epsilon-X is also a parent of X
 
-    base_mu_0 and base_sd_0 control parameters for white (race=1)
-    base_mu_1 and base_sd_1 control parameters for Black (race=0)
+    mu_0 and sd_0 control parameters for white (race=1)
+    mu_1 and sd_1 control parameters for Black (race=0)
     '''
     
     # Set random seed for LSAT score generation
     np.random.seed(seed)
 
     # bundle parameters into lists
-    base_mus = [base_mu_0, base_mu_1]
-    base_sds = [base_sd_0, base_sd_1]
+    mus = [mu_0, mu_1]
+    sds = [sd_0, sd_1]
     
     # draw each base score from normal distribution designated by race
-    lsat = [normal(loc=base_mus[x], scale=base_sds[x], size=1)[0] for x in a]
+    lsat = [normal(loc=mus[x], scale=sds[x], size=1)[0] for x in a]
     
     # Add noise if DAG specifies X is child of error node
     if err_input:
@@ -117,8 +117,8 @@ def gen_data(a_seed, y_err_seed, x_err_seed, x_seed, rank_seed,# random seeds ca
              x_err_mu=0, x_err_sd=1, # X-noise settings
              y_err_mu=0, y_err_sd=1, # Y-noise settings
              prob_priv=0.6, # race setting
-             x_base_mu_0=-1, x_base_sd_0=1, # lsat settings
-             x_base_mu_1=0, x_base_sd_1=0.5, # more lsat settings
+             x_mu_0=-1, x_sd_0=1, # lsat settings
+             x_mu_1=0, x_sd_1=0.5, # more lsat settings
              y_a_weight=0.4, y_x_weight=0.8, # gpa settings
              normalize=True, # whether to rescale X and Y to [0,1]
              observed=True, # whether to drop unobserved noise columns in output
@@ -146,8 +146,8 @@ def gen_data(a_seed, y_err_seed, x_err_seed, x_seed, rank_seed,# random seeds ca
     
     # Generate LSAT score node (X)
     x = gen_X(seed=x_seed, a=a, err_input = x_err_input, err=x_err,
-              base_mu_0=x_base_mu_0, base_sd_0=x_base_sd_0,
-              base_mu_1=x_base_mu_1, base_sd_1=x_base_sd_1)
+              mu_0=x_mu_0, sd_0=x_sd_0,
+              mu_1=x_mu_1, sd_1=x_sd_1)
 
     # Rescale X to [0,1] if normalize is set to True
     if normalize:
@@ -173,7 +173,7 @@ def gen_data(a_seed, y_err_seed, x_err_seed, x_seed, rank_seed,# random seeds ca
     
     # Save to CSV if save set to True
     if save:
-        data.to_csv(output_filepath)
+        data.to_csv(output_filepath, index=False)
 
     return(data)
 
@@ -185,8 +185,8 @@ def gen_data_and_sample_noise(n_runs, # number of re-rankings to sample
                                 x_err_mu=0, x_err_sd=1, # X-noise settings
                                 y_err_mu=0, y_err_sd=1, # Y-noise settings
                                 prob_priv=0.6, # race setting
-                                x_base_mu_0=-1, x_base_sd_0=1, # lsat settings
-                                x_base_mu_1=0, x_base_sd_1=0.5, # more lsat settings
+                                x_mu_0=-1, x_sd_0=1, # lsat settings
+                                x_mu_1=0, x_sd_1=0.5, # more lsat settings
                                 y_a_weight=0.4, y_x_weight=0.8, # gpa settings
                                 normalize=True, # whether to rescale X and Y to [0,1])
                                 output_dir='default', # folder within out/synthetic_data/stability/
@@ -197,6 +197,9 @@ def gen_data_and_sample_noise(n_runs, # number of re-rankings to sample
     '''
     Generate original dataset and save to CSV
     Generate n_runs additional datasets by re-sampling the noise
+
+    Not the favored implementation. 
+    See gen_data_and_resample_noise for favored implementation.
     '''
 
     # Set initial seeds
@@ -206,7 +209,8 @@ def gen_data_and_sample_noise(n_runs, # number of re-rankings to sample
     y_err_seed=(n_runs+1)*2+rank_seed # will not be used unless y_err_input==True
 
     # Set output filepaths
-    base_output_dir = pathlib.Path(__file__).parents[2] / 'out' / 'synthetic_data' / 'stability' / output_dir
+    base_repo_dir = pathlib.Path(os.path.realpath(__file__)).parents[2]
+    base_output_dir = base_repo_dir / 'out' / 'synthetic_data' / 'stability' / output_dir
     data_output_filepath = base_output_dir / 'data' / data_filename
     rankings_output_filepath = base_output_dir / 'rankings' / rankings_filename
 
@@ -220,8 +224,8 @@ def gen_data_and_sample_noise(n_runs, # number of re-rankings to sample
                                 prob_priv=prob_priv, 
                                 normalize=normalize, 
                                 observed=False, # Do not drop unobserved error columns
-                                x_base_mu_0=x_base_mu_0, x_base_sd_0=x_base_sd_0,
-                                x_base_mu_1=x_base_mu_1, x_base_sd_1=x_base_sd_1,
+                                x_mu_0=x_mu_0, x_sd_0=x_sd_0,
+                                x_mu_1=x_mu_1, x_sd_1=x_sd_1,
                                 y_a_weight=y_a_weight, y_x_weight=y_x_weight)
 
     # Generate baseline dataset with initial seeds and save to CSV
@@ -245,7 +249,7 @@ def gen_data_and_sample_noise(n_runs, # number of re-rankings to sample
 
     # Save rankings to CSV if save_rankings set to True
     if save_rankings:
-        data.to_csv(rankings_output_filepath)
+        data.to_csv(rankings_output_filepath, index=False)
     
     return data
 
@@ -305,7 +309,7 @@ def resample_noise_from_data(n_runs, # number of re-rankings to sample
 
     # Save rankings to CSV if save set to True
     if save:
-        orig_data.to_csv(output_filepath)
+        orig_data.to_csv(output_filepath, index=False)
 
     return orig_data
 
@@ -316,8 +320,8 @@ def gen_data_and_resample_noise(n_runs, # number of re-rankings to sample
                                 x_err_mu=0, x_err_sd=1, # X-noise settings
                                 y_err_mu=0, y_err_sd=1, # Y-noise settings
                                 prob_priv=0.6, # race setting
-                                x_base_mu_0=-1, x_base_sd_0=1, # lsat settings
-                                x_base_mu_1=0, x_base_sd_1=0.5, # more lsat settings
+                                x_mu_0=-1, x_sd_0=1, # lsat settings
+                                x_mu_1=0, x_sd_1=0.5, # more lsat settings
                                 y_a_weight=0.4, y_x_weight=0.8, # gpa settings
                                 normalize=True, # whether to rescale X and Y to [0,1]):
                                 output_dir='default', # folder within out/synthetic_data/stability/ 
@@ -329,6 +333,8 @@ def gen_data_and_resample_noise(n_runs, # number of re-rankings to sample
     Generate original observed dataset: A, X, Y, and rank
     Save dataset to CSV
     Resample rankings
+
+    This implementation is favored over gen_data_and_sample_noise
     '''
 
     # Set initial seeds
@@ -338,7 +344,8 @@ def gen_data_and_resample_noise(n_runs, # number of re-rankings to sample
     y_err_seed=(n_runs+1)*2+rank_seed # will not be used unless y_err_input==True
 
     # Set output filepaths
-    base_output_dir = pathlib.Path(__file__).parents[2] / 'out' / 'synthetic_data' / 'stability' / output_dir
+    base_repo_dir = pathlib.Path(os.path.realpath(__file__)).parents[2]
+    base_output_dir = base_repo_dir / 'out' / 'synthetic_data' / 'stability' / output_dir
     data_output_filepath = base_output_dir / 'data' / data_filename
     rankings_output_filepath = base_output_dir / 'rankings' / rankings_filename
 
@@ -351,8 +358,8 @@ def gen_data_and_resample_noise(n_runs, # number of re-rankings to sample
                             prob_priv=prob_priv, 
                             normalize=normalize, 
                             observed=True, # Drop unobserved error columns
-                            x_base_mu_0=x_base_mu_0, x_base_sd_0=x_base_sd_0,
-                            x_base_mu_1=x_base_mu_1, x_base_sd_1=x_base_sd_1,
+                            x_mu_0=x_mu_0, x_sd_0=x_sd_0,
+                            x_mu_1=x_mu_1, x_sd_1=x_sd_1,
                             y_a_weight=y_a_weight, y_x_weight=y_x_weight,
                             save=True, output_filepath=data_output_filepath) # Save dataset to CSV
 
@@ -369,49 +376,82 @@ def gen_data_and_resample_noise(n_runs, # number of re-rankings to sample
 
     return rankings_data
 
-def sampling_distribution(s_samples, # number of original dataset samples
-                            n_runs, # number of re-rankings to sample from noise distribution of each sample
-                            m_rows, # number of rows in dataset
-                            x_err_input, y_err_input, # which nodes receive noise as input (X and/or Y)
-                            output_dir='default', # folder within out/synthetic_data/stability/
-                            seed=0, # initial seed for race (all other seeds based on this)
-                            x_err_mu=0, x_err_sd=1, # X-noise settings
-                            y_err_mu=0, y_err_sd=1, # Y-noise settings
-                            prob_priv=0.6, # race setting
-                            x_base_mu_0=-1, x_base_sd_0=1, # lsat settings
-                            x_base_mu_1=0, x_base_sd_1=0.5, # more lsat settings
-                            y_a_weight=0.4, y_x_weight=0.8, # gpa settings
-                            normalize=True): # whether to rescale X and Y to [0,1])
+def sampling_distribution(args):
                             
-
     '''
     Generate s_samples of original dataset, save each to CSV
     For each dataset, sample rankings from noise distribution and save to CSV
+
+    Required Arguments
+        s_samples:     number of original dataset samples
+        n_runs:        number of re-rankings to sample from noise distribution of each sample
+        m_rows:        number of rows in dataset
+        x_err_input:   whether X node receives noise as input
+        y_err_input:   whether X node receives noise as input
+
+    Optional Arguments
+        output_dir: folder within out/synthetic_data/stability/ to store output 
+                        default = 'default'
+        seed:       initial seed for race (all other seeds based on this) 
+                        default = 0
+        x_err_mu:   xpected value of X's noise parent
+                        default = 0
+        x_err_sd:   std dev of X's noise parent
+                        default = 1
+        y_err_mu:   expected value of Y's noise parent
+                        default = 0
+        y_err_sd:   std dev of Y's noise parent
+                        default = 1
+        prov_priv:  probability of privileged race (A=1)
+                        default = 0.6
+        x_mu_0:     expected value of X for A=0
+                        default = -1
+        x_sd_0:     std dev of X for A=0
+                        default = 1 
+        x_mu_1:     expected value of X for A=1
+                        default = 0
+        x_sd_1:     std dev of X for A=1
+                        default = 0.5
+        y_a_weight: coefficient of A value on Y      
+                        default = 0.4
+        y_x_weight: coefficient of X value on Y      
+                        default = 0.8
+        normalize:  whether to rescale X and Y nodes to [0,1]
+                        default = True
     '''
 
     # Create partial function for sampling noise distribution
     # Include all parameters which will remain constant
     gen_data_and_resample_noise_partial = partial(gen_data_and_resample_noise,
-                                                    n_runs=n_runs, M=m_rows,
-                                                    x_err_input=x_err_input, y_err_input=y_err_input,
-                                                    x_err_mu=x_err_mu, x_err_sd=x_err_sd,
-                                                    y_err_mu=y_err_mu, y_err_sd=y_err_sd,
-                                                    prob_priv=prob_priv,
-                                                    x_base_mu_0=x_base_mu_0, x_base_sd_0=x_base_sd_0,
-                                                    x_base_mu_1=x_base_mu_1, x_base_sd_1=x_base_sd_1,
-                                                    y_a_weight=y_a_weight, y_x_weight=y_x_weight,
-                                                    normalize=normalize,
-                                                    output_dir=output_dir,
+                                                    n_runs=args.n_runs, 
+                                                    M=args.m_rows,
+                                                    x_err_input=args.x_err_input, 
+                                                    y_err_input=args.y_err_input,
+                                                    x_err_mu=args.x_err_mu, 
+                                                    x_err_sd=args.x_err_sd,
+                                                    y_err_mu=args.y_err_mu, 
+                                                    y_err_sd=args.y_err_sd,
+                                                    prob_priv=args.prob_priv,
+                                                    x_mu_0=args.x_mu_0, 
+                                                    x_sd_0=args.x_sd_0,
+                                                    x_mu_1=args.x_mu_1, 
+                                                    x_sd_1=args.x_sd_1,
+                                                    y_a_weight=args.y_a_weight, 
+                                                    y_x_weight=args.y_x_weight,
+                                                    normalize=args.normalize,
+                                                    output_dir=args.output_dir,
                                                     save_rankings=True)
-    
+    seed = args.seed
     # Generate s_samples of original dataset and sample rankings from noise distribution of each
-    for i in range(s_samples):
+    for i in range(args.s_samples):
         gen_data_and_resample_noise_partial(a_seed=seed, 
                                             data_filename='observed_samp_{}.csv'.format(i+1),
                                             rankings_filename='observed_samp_{}.csv'.format(i+1))
 
         # Increment race seed (which will control all other seeds)
-        seed += (n_runs+1)*3+2
+        seed += (args.n_runs+1)*3+2
+
+        print('Finished generating sample {} of {}'.format(i+1, args.s_samples))
 
     return
 
@@ -422,26 +462,25 @@ if __name__ == "__main__":
     # Required arguments
     parser.add_argument("--s_samples", type=int, help='number of samples to draw for sampling distribution')
     parser.add_argument("--n_runs", type=int, help='number of runs for error distribution')
-    parser.add_argument("--m_rows", type=bool, help='number of rows in dataset')
+    parser.add_argument("--m_rows", type=int, help='number of rows in dataset')
     parser.add_argument("--x_err_input", type=bool, help='whether X has an error parent')
     parser.add_argument("--y_err_input", type=bool, help='whether Y has an error parent')
     
     # Optional arguments
-    parser.add_argument("--output_dir", type=str, default='default')
-    parser.add_argument("--seed", type=int, default=0, 'Initial seed for race sample; basis of all other seeds')
+    parser.add_argument("--seed", type=int, default=0, help='Initial seed for race sample; basis of all other seeds')
+    parser.add_argument("--output_dir", type=str, default='default',  help='folder within out/synthetic_data/stability/ to store output')
     parser.add_argument("--x_err_mu", type=float, default=0)
     parser.add_argument("--x_err_sd", type=float, default=1)
     parser.add_argument("--y_err_mu", type=float, default=0)
     parser.add_argument("--y_err_sd", type=float, default=1)
     parser.add_argument("--prob_priv", type=float, default=0.6)
-    parser.add_argument("--x_base_mu_0", type=float, default=-1)
-    parser.add_argument("--x_base_sd_0", type=float, default=1)
-    parser.add_argument("--x_base_mu_1", type=float, default=0)
-    parser.add_argument("--x_base_sd_1", type=float, default=0.5)
+    parser.add_argument("--x_mu_0", type=float, default=-1)
+    parser.add_argument("--x_sd_0", type=float, default=1)
+    parser.add_argument("--x_mu_1", type=float, default=0)
+    parser.add_argument("--x_sd_1", type=float, default=0.5)
     parser.add_argument("--y_a_weight", type=float, default=0.4)
     parser.add_argument("--y_x_weight", type=float, default=0.8)
     parser.add_argument("--normalize", type=bool, default=True)
-    
 
     args = parser.parse_args()
 

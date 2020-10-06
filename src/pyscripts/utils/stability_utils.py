@@ -1,3 +1,5 @@
+import numpy as np
+
 def calc_rank(seed, y):
 
     '''
