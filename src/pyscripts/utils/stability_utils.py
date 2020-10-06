@@ -1,5 +1,10 @@
 import numpy as np
 
+def rescale(arr, new_min=0, new_max=1):
+    old_min = arr.min()
+    old_max = arr.max()
+    return ((arr-old_min)/(old_max-old_min))*(new_max-new_min)+new_min
+
 def calc_rank(seed, y):
 
     '''

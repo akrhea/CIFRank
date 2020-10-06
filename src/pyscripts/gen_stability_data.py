@@ -7,7 +7,7 @@ from numpy.random import normal, binomial
 from itertools import combinations, product
 from functools import partial
 import os, pathlib, argparse, sys
-from utils.stability_utils import calc_rank
+from utils.stability_utils import calc_rank, rescale
 
 '''
 Alene Rhea, October 2020
@@ -19,10 +19,7 @@ Adapted from https://github.com/akrhea/CIFRank/blob/master/src/Expected_Kendall_
 Data-generating process adapted to approximately match Ke Yang's mv_m2
 '''
 
-def rescale(arr, new_min=0, new_max=1):
-    old_min = arr.min()
-    old_max = arr.max()
-    return ((arr-old_min)/(old_max-old_min))*(new_max-new_min)+new_min
+
 
 def gen_A(seed, M, prob_priv=0.6):
     '''
