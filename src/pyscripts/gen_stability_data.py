@@ -431,7 +431,7 @@ def gen_data_and_resample_noise(n_runs, # number of re-rankings to sample
 
 def sampling_distribution(s_samples, # number of original dataset samples
                             n_runs, # number of re-rankings to sample from noise distribution of each sample
-                            M_rows, # number of rows in dataset
+                            m_rows, # number of rows in dataset
                             x_err_input, y_err_input, # which nodes receive noise as input (X and/or Y)
                             output_dir='default', # folder within out/synthetic_data/stability/
                             seed=0, # initial seed for race (all other seeds based on this)
@@ -452,7 +452,7 @@ def sampling_distribution(s_samples, # number of original dataset samples
     # Create partial function for sampling noise distribution
     # Include all parameters which will remain constant
     gen_data_and_resample_noise_partial = partial(gen_data_and_resample_noise,
-                                                    n_runs=n_runs, M=M_rows,
+                                                    n_runs=n_runs, M=m_rows,
                                                     x_err_input=x_err_input, y_err_input=y_err_input,
                                                     x_err_mu=x_err_mu, x_err_sd=x_err_sd,
                                                     y_err_mu=y_err_mu, y_err_sd=y_err_sd,
@@ -479,14 +479,16 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Run Synthetic Data Generation for Stability Analysis")
 
-    parser.add_argument("--s_samples", type=int)
-    parser.add_argument("--n_runs", type=int)
-    parser.add_argument("--M_rows", type=bool)
-    parser.add_argument("--x_err_input", type=bool)
-    parser.add_argument("--y_err_input", type=bool)
+    # Required arguments
+    parser.add_argument("--s_samples", type=int, help='number of samples to draw for sampling distribution')
+    parser.add_argument("--n_runs", type=int, help='number of runs for error distribution')
+    parser.add_argument("--m_rows", type=bool, help='number of rows in dataset')
+    parser.add_argument("--x_err_input", type=bool, help='whether X has an error parent')
+    parser.add_argument("--y_err_input", type=bool, help='whether Y has an error parent')
     
+    # Optional arguments
     parser.add_argument("--output_dir", type=str, default='default')
-    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--seed", type=int, default=0, 'Initial seed for race sample; basis of all other seeds')
     parser.add_argument("--x_err_mu", type=float, default=0)
     parser.add_argument("--x_err_sd", type=float, default=1)
     parser.add_argument("--y_err_mu", type=float, default=0)
