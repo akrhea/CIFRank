@@ -1,11 +1,13 @@
-# args = commandArgs(trailingOnly=TRUE)
-#output_p <- args[1]
-# run_n <- args[2]
-s_samples <- 100
+# Take in arguments
+args = commandArgs(trailingOnly=TRUE)
+s_samples <- args[1]
+output_dir <- args[2]
 
+# Initialize dataframe to hold model parameters for node X
 params.x <- data.frame(a=numeric(s_samples), 
                           intercept=numeric(s_samples))
 
+# Initialize dataframe to hold model parameters for node Y
 params.y <- data.frame(a=numeric(s_samples), 
                           x=numeric(s_samples),
                           intercept=numeric(s_samples))
@@ -14,9 +16,8 @@ for (i in 1:s_samples) {
 
   # need to update filepath formats if script run from bash script
   data_i <- read.csv(paste(dirname(dirname(getwd())),
-                   '/out/synthetic_data/stability/default/data/observed_samp_',
-                   i,'.csv',
-                   sep=''))
+                   '/out/synthetic_data/stability/', output_dir,
+                   '/data/observed_samp_', i,'.csv', sep=''))
   
   # estimate model for x with lin reg
   model.x <- lm(x ~ a, data = data_i)
@@ -59,11 +60,11 @@ for (i in 1:s_samples) {
 
 # save dataframe of x parameters to csv
 write.csv(params.x, file=paste(dirname(dirname(getwd())),
-                          '/out/parameter_data/stability/default/params_x.csv',
-                          sep=''))
+                               '/out/parameter_data/stability/', output_dir,
+                               '/params_x.csv', sep=''))
 
 # save dataframe of y parameters to csv
 write.csv(params.y, file=paste(dirname(dirname(getwd())),
-                                  '/out/parameter_data/stability/default/params_y.csv',
-                                  sep=''))
+                               '/out/parameter_data/stability/', output_dir,
+                               '/params_y.csv', sep=''))
 
