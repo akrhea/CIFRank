@@ -110,6 +110,7 @@ def gen_Y(a, x, err_input, err=None,
 
 def gen_data(a_seed, y_err_seed, x_err_seed, x_seed, rank_seed,# random seeds can be set seperately
              x_err_input, y_err_input, # which nodes receive noise as input (X and/or Y)
+             unmeasured_confounding, # whether X and Y share a noise parent
              M, # number of rows in dataset
              x_err_mu=0, x_err_sd=1, # X-noise settings
              y_err_mu=0, y_err_sd=1, # Y-noise settings
@@ -128,6 +129,14 @@ def gen_data(a_seed, y_err_seed, x_err_seed, x_seed, rank_seed,# random seeds ca
     
     # Generate race node (A)
     a = gen_A(seed=a_seed, M=M, prob_priv=prob_priv)
+
+    if unmeasured_confounding:
+        # Ensure X and Y both have error parent nodes
+        x_err_input=True
+        y_err_input=True
+
+        # Use same seed for both errors
+        y_err_seed=x_err_seed
     
     if y_err_input:
         # Generate noise node to be parent of Y (Epsilon-Y)
@@ -170,13 +179,14 @@ def gen_data(a_seed, y_err_seed, x_err_seed, x_seed, rank_seed,# random seeds ca
     
     # Save to CSV if save set to True
     if save:
-        data.to_csv(output_filepath, index=False)
+       data.to_csv(output_filepath, index=False)
 
-    return(data)
+    return data
 
 
 def gen_data_and_sample_noise(n_runs, # number of re-rankings to sample
                                 x_err_input, y_err_input, # whether X and Y have noise parents
+                                unmeasured_confounding, # whether X and Y share a noise parent
                                 M, # number of rows in dataset
                                 a_seed=0, # seed for race (all other seeds based on this)
                                 x_err_mu=0, x_err_sd=1, # X-noise settings
@@ -216,6 +226,7 @@ def gen_data_and_sample_noise(n_runs, # number of re-rankings to sample
     gen_data_partial = partial(gen_data, M=M, 
                                 a_seed=a_seed, x_seed=x_seed, 
                                 x_err_input=x_err_input, y_err_input=y_err_input,
+                                unmeasured_confounding=unmeasured_confounding,
                                 x_err_mu=x_err_mu, x_err_sd=x_err_sd, 
                                 y_err_mu=y_err_mu, y_err_sd=y_err_sd,
                                 prob_priv=prob_priv, 
@@ -226,7 +237,7 @@ def gen_data_and_sample_noise(n_runs, # number of re-rankings to sample
                                 y_a_weight=y_a_weight, y_x_weight=y_x_weight)
 
     # Generate baseline dataset with initial seeds and save to CSV
-    data = gen_data_partial(y_err_seed=y_err_seed,  x_err_seed=x_err_seed, rank_seed=rank_seed,
+    data = gen_data_partial(y_err_seed=y_err_seed, x_err_seed=x_err_seed, rank_seed=rank_seed,
                             save=True, output_filepath=data_output_filepath)
     
     # Generate additional datasets
@@ -238,7 +249,7 @@ def gen_data_and_sample_noise(n_runs, # number of re-rankings to sample
         y_err_seed +=1
         
         # Generate dataset with non-constant seeds incremented and do not save to CSV
-        sim = gen_data_partial(y_err_seed=y_err_seed,  x_err_seed=x_err_seed, rank_seed=rank_seed,
+        sim = gen_data_partial(y_err_seed=y_err_seed, x_err_seed=x_err_seed, rank_seed=rank_seed,
                                 save=False)
         
         # Add this ranking to the original dataframe
@@ -246,7 +257,7 @@ def gen_data_and_sample_noise(n_runs, # number of re-rankings to sample
 
     # Save rankings to CSV if save_rankings set to True
     if save_rankings:
-        data.to_csv(rankings_output_filepath, index=False)
+       data.to_csv(rankings_output_filepath, index=False)
     
     return data
 
@@ -254,6 +265,7 @@ def gen_data_and_sample_noise(n_runs, # number of re-rankings to sample
 def resample_noise_from_data(n_runs, # number of re-rankings to sample
                             orig_data, # original dataset
                             x_err_input, y_err_input, # whether X and Y have noise parents
+                            unmeasured_confounding, # whether X and Y share a noise parent
                             x_err_mu=0, x_err_sd=1, # X-Noise settings
                             y_err_mu=0, y_err_sd=1, # Y-Noise settings
                             y_a_weight=0.4, y_x_weight=0.8, # GPA settings
@@ -267,9 +279,19 @@ def resample_noise_from_data(n_runs, # number of re-rankings to sample
     Uses default settings from gen_data
     '''
 
-    # Set initial seeds
+    # Set initial seed
     x_err_seed=n_runs+1+rank_seed # will not be used unless x_err_input==True
-    y_err_seed=(n_runs+1)*2+rank_seed # will not be used unless y_err_input==True
+
+    if unmeasured_confounding:
+        # Ensure X and Y both have error parent nodes
+        x_err_input=True
+        y_err_input=True
+
+        # Use same seed for both errors
+        y_err_seed=x_err_seed
+
+    else:
+        y_err_seed=(n_runs+1)*2+rank_seed # will not be used unless y_err_input==True
     
     # get number of rows from original dataset
     M = len(orig_data)
@@ -306,12 +328,13 @@ def resample_noise_from_data(n_runs, # number of re-rankings to sample
 
     # Save rankings to CSV if save set to True
     if save:
-        orig_data.to_csv(output_filepath, index=False)
+       orig_data.to_csv(output_filepath, index=False)
 
     return orig_data
 
 def gen_data_and_resample_noise(n_runs, # number of re-rankings to sample
                                 x_err_input, y_err_input, # which nodes receive noise as input (X and/or Y)
+                                unmeasured_confounding, # whether X and Y share a noise parent
                                 M, # number of rows in dataset
                                 a_seed=0, # seed for race (all other seeds based on this)    
                                 x_err_mu=0, x_err_sd=1, # X-noise settings
@@ -336,7 +359,7 @@ def gen_data_and_resample_noise(n_runs, # number of re-rankings to sample
 
     # Set initial seeds
     x_seed=a_seed+1
-    rank_seed=a_seed+3
+    rank_seed=a_seed+2
     x_err_seed=n_runs+1+rank_seed # will not be used unless x_err_input==True
     y_err_seed=(n_runs+1)*2+rank_seed # will not be used unless y_err_input==True
 
@@ -349,7 +372,8 @@ def gen_data_and_resample_noise(n_runs, # number of re-rankings to sample
     # Generate original dataset with initial seeds
     orig_data = gen_data(y_err_seed=y_err_seed,  x_err_seed=x_err_seed,
                             x_seed=x_seed, a_seed=a_seed, rank_seed=rank_seed,
-                            x_err_input=x_err_input, y_err_input=y_err_input, M=M,
+                            x_err_input=x_err_input, y_err_input=y_err_input, 
+                            unmeasured_confounding=unmeasured_confounding, M=M,
                             x_err_mu=x_err_mu, x_err_sd=x_err_sd, 
                             y_err_mu=y_err_mu, y_err_sd=y_err_sd,
                             prob_priv=prob_priv, 
@@ -363,7 +387,8 @@ def gen_data_and_resample_noise(n_runs, # number of re-rankings to sample
     # Use orig_data to resample rankings from noise distribution
     rankings_data = resample_noise_from_data(n_runs=n_runs,
                                             orig_data=orig_data, 
-                                            x_err_input=x_err_input, y_err_input=y_err_input, 
+                                            x_err_input=x_err_input, y_err_input=y_err_input,
+                                            unmeasured_confounding=unmeasured_confounding, 
                                             x_err_mu=x_err_mu, x_err_sd=x_err_sd, 
                                             y_err_mu=y_err_mu, y_err_sd=y_err_sd, 
                                             y_a_weight=y_a_weight, y_x_weight=y_x_weight, 
@@ -380,11 +405,13 @@ def sampling_distribution(args):
     For each dataset, sample rankings from noise distribution and save to CSV
 
     Required Arguments
-        s_samples:     number of original dataset samples
-        n_runs:        number of re-rankings to sample from noise distribution of each sample
-        m_rows:        number of rows in dataset
-        x_err_input:   whether X node receives noise as input
-        y_err_input:   whether X node receives noise as input
+        s_samples:                  number of original dataset samples
+        n_runs:                     number of re-rankings to sample from noise distribution of each sample
+        m_rows:                     number of rows in dataset
+        x_err_input:                whether X node receives noise as input
+        y_err_input:                whether X node receives noise as input
+        unmeasured_confounding:     whether X and Y share a noise parent
+
 
     Optional Arguments
         output_dir: folder within out/synthetic_data/stability/ to store output 
@@ -424,6 +451,7 @@ def sampling_distribution(args):
                                                     M=args.m_rows,
                                                     x_err_input=args.x_err_input, 
                                                     y_err_input=args.y_err_input,
+                                                    unmeasured_confounding=args.unmeasured_confounding,
                                                     x_err_mu=args.x_err_mu, 
                                                     x_err_sd=args.x_err_sd,
                                                     y_err_mu=args.y_err_mu, 
@@ -460,9 +488,20 @@ if __name__ == "__main__":
     parser.add_argument("--s_samples", type=int, help='number of samples to draw for sampling distribution')
     parser.add_argument("--n_runs", type=int, help='number of runs for error distribution')
     parser.add_argument("--m_rows", type=int, help='number of rows in dataset')
-    parser.add_argument("--x_err_input", type=bool, help='whether X has an error parent')
-    parser.add_argument("--y_err_input", type=bool, help='whether Y has an error parent')
-    
+
+    # Boolean arguments (add flag to set to true)
+    parser.add_argument("--x_err_input", action='store_true', 
+                        help='boolean flag indicating X has an error parent')
+
+    parser.add_argument("--y_err_input", action='store_true', 
+                        help='boolean flag indicating Y has an error parent')
+
+    parser.add_argument("--unmeasured_confounding", action='store_true', 
+                        help='boolean flag indicating X and Y share a noise parent')
+
+    parser.add_argument("--do_not_normalize", action='store_true', 
+                        help='boolean flag indicating X and Y will not be scaled to [0,1]')
+
     # Optional arguments
     parser.add_argument("--seed", type=int, default=0, help='Initial seed for race sample; basis of all other seeds')
     parser.add_argument("--output_dir", type=str, default='default',  help='folder within out/synthetic_data/stability/ to store output')
@@ -477,8 +516,18 @@ if __name__ == "__main__":
     parser.add_argument("--x_sd_1", type=float, default=0.5)
     parser.add_argument("--y_a_weight", type=float, default=0.4)
     parser.add_argument("--y_x_weight", type=float, default=0.8)
-    parser.add_argument("--normalize", type=bool, default=True)
-
+    
     args = parser.parse_args()
+
+    # Set normalize argument based on do_not_normalize
+    if args.do_not_normalize==True:
+        args.normalize=False
+    else:
+        args.normalize=True
+
+    # Ensure X and Y both have error node parents if unmeasured confounding flag is passed
+    if args.unmeasured_confounding:
+        args.x_err_input=True
+        args.y_err_input=True
 
     sampling_distribution(args)
