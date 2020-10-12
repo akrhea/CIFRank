@@ -122,14 +122,17 @@ def calc_expected_kendalls_taus(args):
     # 1 value for entire experiment trial
     exp_kt_counter_xres_a1 = np.nanmean(counter_kts_xres[:,1])
     
+    # Bundle expected KTs into dict
     exp_dict = {'exp_exp_noise': exp_exp_kt_noise, 
                 'exp_nonres0': exp_kt_counter_nonres_a0,
                 'exp_nonres1': exp_kt_counter_nonres_a1,
                 'exp_xres0': exp_kt_counter_xres_a0,
                 'exp_xres1': exp_kt_counter_xres_a1}
 
+    # Bundle noise KTs into df
     noise_kt_df = pd.DataFrame(noise_kts, columns=['orig_noise'+str(i+1) for i in range(args.n_runs)])
     
+    # Bundle counterfactual KTs into df
     cf_kt_df = pd.concat([ pd.DataFrame(exp_kt_noise, columns=['exp_orig_noise']),
                             pd.DataFrame(counter_kts_nonres, columns=['orig_nonres0', 'orig_nonres1']), 
                             pd.DataFrame(counter_kts_xres, columns=['orig_xres0', 'orig_xres1']), 
@@ -142,30 +145,77 @@ def calc_expected_kendalls_taus(args):
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description="Get Counterfactual Data")
+    parser = argparse.ArgumentParser(description="Calculate Kendall's Tau Distances")
+
+    # Required arguments
+    parser.add_argument("--s_samples", type=int, help='number of samples to draw for sampling distribution')
+    parser.add_argument("--n_runs", type=int, help='number of runs for error distribution')
 
     # Optional argument
     parser.add_argument("--output_dir", type=str, default='default')
 
+    # Parse arguments
     args = parser.parse_args()
 
+    # Save repo root directory
     args.base_repo_dir = pathlib.Path(os.path.realpath(__file__)).parents[2]
 
+    # Save high-level output directory
+    main_output_dir = args.output_dir
+
+    # Define path to traverse
+    output_path = args.base_repo_dir /'out'/'counterfactual_data'/'stability'/ main_output_dir   
+
+    # Initialize list of dicts of expected KTs
     exp_dicts = []
-    noise_kt_dfs = []
-    cf_kt_dfs = []
 
-    # Remove this hard coding
-    ERR_INPUTS=["x", "y", "xy_ind", "xy_conf"]
-    ERR_SDS=[0.0, 0.1, 0.2]
+    # Initialize list of lists of experiment subdirectories
+    sub_dirs = []
 
-    # Convert below into oswalk
-    for err_input in ERR_INPUTS:
-        for err_sd in ERR_SDS:
-            args.output_dir = "err_sd/{}/{}".format(err_input, err_sd)
+    # Walk through experiment directory and subdirectories
+    for root, dirs, files in os.walk(output_path):
 
+        # Exclude hidden files
+        files = [f for f in files if not f[0] == '.']
+
+        # If directory contains files
+        if len(files)>0:
+
+            # Isolate experiment subdirectory
+            args.output_dir = main_output_dir+ root.split(main_output_dir)[1]
+
+            # Save subdirectory to list of lists
+            sub_dir = args.output_dir.split('/')[1:]
+            sub_dirs.append(sub_dir)
+
+            # Calculate KTs from files in this subdir
             noise_kt_df, cf_kt_df, exp_dict = calc_expected_kendalls_taus(args)
+
             
+            # Save cf and noise distance dfs to CSV
+            filename = '_'.join(sub_dir)+'.csv'
+
+            noise_kt_df.to_csv(args.base_repo_dir/'out'/'kendalls_tau_distances'/\
+                                main_output_dir/'noise'/filename, 
+                            index=False)
+                            
+            cf_kt_df.to_csv(args.base_repo_dir/'out'/'kendalls_tau_distances'/\
+                                main_output_dir/'counterfactuals'/filename, 
+                            index=False)
+            
+            # Add dict of expected KTs to saved list of dicts
             exp_dicts.append(exp_dict)
-            noise_kt_dfs.append(noise_kt_df)
-            cf_kt_dfs.append(cf_kt_df)
+
+            print('Distance calculation for {} complete'.format(args.output_dir))
+            
+    # Get list of indices which lex-sort list of lists of subdirectories
+    dirs_sort = np.lexsort(tuple([np.array(sub_dirs).T[i] \
+                                 for i in np.flip(np.arange(np.array(sub_dirs).shape[1]))]))
+
+    # Create expected KT df with multi-index of lex-sorted subdirectories
+    exp_kt_df = pd.DataFrame(list(np.array(exp_dicts)[dirs_sort]), 
+                            index=pd.MultiIndex.from_tuples(sorted(sub_dirs)))
+
+    # Save expected KT df to CSV
+    exp_kt_df.to_csv(args.base_repo_dir/'out'/'kendalls_tau_distances'/\
+                                main_output_dir/'expected.csv')

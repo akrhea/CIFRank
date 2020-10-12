@@ -5,14 +5,12 @@
 # the X/Y error nodes on ranking stability
 
 # Input settings
-S_SAMPLES=100
-N_RUNS=50
-M_ROWS=10
+S_SAMPLES=1000
+N_RUNS=500
+M_ROWS=50
 
 # Array of error standard deviations to test
-#ERR_SDS=(0.0 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0)
-# Array of error standard deviations to test
-ERR_SDS=(0.0 0.1 0.2)
+ERR_SDS=(0.0 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0)
 
 # Array of error inputs to test
 ERR_INPUTS=("x" "y" "xy_ind" "xy_conf")
@@ -31,6 +29,8 @@ do
         mkdir -p "out/synthetic_data/stability/$output_dir/rankings/"
         mkdir -p "out/parameter_data/stability/$output_dir/"
         mkdir -p "out/counterfactual_data/stability/$output_dir/"
+        mkdir -p "out/kendalls_tau_distances/err_sd/noise/"
+        mkdir -p "out/kendalls_tau_distances/err_sd/counterfactuals/"
 
         if [ "$err_input" = "x" ]
         then
@@ -69,5 +69,9 @@ do
 
         # Get counterfactual data from estimated causal model
         python src/pyscripts/gen_counter_data_stability.py --output_dir $output_dir
+
     done
 done
+
+# Calculate Kendall's Tau distances
+python src/pyscripts/calc_stability_distances.py --output_dir err_sd --s_samples $S_SAMPLES --n_runs $N_RUNS
