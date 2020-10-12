@@ -1,10 +1,14 @@
-# # Uncomment to take in arguments
-# args = commandArgs(trailingOnly=TRUE)
-# s_samples <- args[1]
-# output_dir <- args[2]
+#!/usr/bin/env Rscript
 
-s_samples <- 200
-output_dir <- 'default'
+# Script to be run from bash script located in CIFR_Stability repo root dir
+
+# Take in arguments from command line
+args = commandArgs(trailingOnly=TRUE)
+s_samples <- args[1]
+output_dir <- args[2]
+
+# Use "here" library to get path to repo root directory
+library(here)
 
 # Initialize dataframe to hold model parameters for node X
 params.x <- data.frame(a=numeric(s_samples),
@@ -18,9 +22,8 @@ params.y <- data.frame(a=numeric(s_samples),
 for (i in 1:s_samples) {
 
   # need to update filepath formats if script run from bash script
-  data_i <- read.csv(paste(dirname(dirname(getwd())),
-                   '/out/synthetic_data/stability/', output_dir,
-                   '/data/observed_samp_', i,'.csv', sep=''))
+  data_i <- read.csv(here('out','synthetic_data','stability',output_dir,'data', 
+                          paste('observed_samp_', i, '.csv', sep='')))
 
   # estimate model for x with lin reg
   model.x <- lm(x ~ a, data = data_i)
@@ -62,12 +65,11 @@ for (i in 1:s_samples) {
 }
 
 # save dataframe of x parameters to csv
-write.csv(params.x, file=paste(dirname(dirname(getwd())),
-                               '/out/parameter_data/stability/', output_dir,
-                               '/params_x.csv', sep=''))
+write.csv(params.x, file = here('out','parameter_data','stability',
+                                output_dir,'params_x.csv'))
+
 
 # save dataframe of y parameters to csv
-write.csv(params.y, file=paste(dirname(dirname(getwd())),
-                               '/out/parameter_data/stability/', output_dir,
-                               '/params_y.csv', sep=''))
+write.csv(params.y, file = here('out','parameter_data','stability',
+                                output_dir,'params_y.csv'))
 
