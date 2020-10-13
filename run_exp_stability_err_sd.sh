@@ -8,13 +8,12 @@
 # S_SAMPLES=1000
 # N_RUNS=500
 # M_ROWS=50
-S_SAMPLES=20
-N_RUNS=5
+S_SAMPLES=500
+N_RUNS=200
 M_ROWS=10
 
 # Array of error standard deviations to test
-#ERR_SDS=(0.0 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0)
-ERR_SDS=(0.0 0.5 1.0)
+ERR_SDS=(0.0 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0)
 
 # Array of error inputs to test
 ERR_INPUTS=("x" "y" "xy_ind" "xy_conf")
