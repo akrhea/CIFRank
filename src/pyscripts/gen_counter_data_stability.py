@@ -29,7 +29,7 @@ def get_counterfactual_data(args):
     for s in range(1, s_samples + 1):
         
         # Read in this sample of the data
-        this_df = pd.read_csv(base_repo_dir / 'out/synthetic_data/stability/{}/data/observed_samp_{}.csv'\
+        this_df = pd.read_csv(base_repo_dir / 'out/synthetic_data/stability/{}/data/samp_{}.csv'\
                                                                             .format(args.output_dir, s))
         
         # Intialize dataframe to hold counterfactual data
@@ -84,13 +84,11 @@ def get_counterfactual_data(args):
             counter_df['cf_y_xres_a{}'.format(group)] = counter_y_res
 
         # Save counterfactual data for this sample to CSV
-        counter_df.to_csv(base_repo_dir / 'out/counterfactual_data/stability/{}/counter_samp_{}.csv'\
-                                                        .format(args.output_dir, s), index=False)
+        counter_df.to_pickle(base_repo_dir / 'out/counterfactual_data/stability/{}/counter_samp_{}.pkl'\
+                                                        .format(args.output_dir, s), compression='gzip')
 
         print('Finished generating counterfactual data for sample {} of {}'.format(s, s_samples))
 
-        
-        
     return 
 
 if __name__ == "__main__":

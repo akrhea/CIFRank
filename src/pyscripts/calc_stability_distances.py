@@ -27,9 +27,9 @@ def calc_expected_kendalls_taus(args):
     for s in range(1, args.s_samples+1):
         
         # Read in counterfactual data
-        counter = pd.read_csv(args.base_repo_dir /'out'/\
+        counter = pd.read_pickle(args.base_repo_dir /'out'/\
                                 'counterfactual_data'/'stability'/args.output_dir/
-                                'counter_samp_{}.csv'.format(s))
+                                'counter_samp_{}.pkl'.format(s), compression='gzip')
         
         # Get list of counterfactual Y columns
         counter_y_cols = [x for x in counter.columns if 'cf_y_' in x]
@@ -39,10 +39,11 @@ def calc_expected_kendalls_taus(args):
             counter['rank_'+y[5:]] = calc_rank(seed=seed, y=counter[y])
             seed += 1
         
-        # Read in noise distribution data
-        noise = pd.read_csv(args.base_repo_dir /'out'/\
-                            'synthetic_data'/'stability'/args.output_dir/\
-                            'rankings'/'observed_samp_{}.csv'.format(s))
+        # Read in noise distribution of ranks
+        noise = pd.read_pickle(args.base_repo_dir /'out'/\
+                                'synthetic_data'/'stability'/args.output_dir/\
+                                'noise_rankings'/'samp_{}.pkl'.format(s), 
+                                compression='gzip')
         
         # Get original rank
         orig_rank = noise['rank']
@@ -193,15 +194,15 @@ if __name__ == "__main__":
 
             
             # Save cf and noise distance dfs to CSV
-            filename = '_'.join(sub_dir)+'.csv'
+            filename = '_'.join(sub_dir)+'.pkl'
 
-            noise_kt_df.to_csv(args.base_repo_dir/'out'/'kendalls_tau_distances'/\
-                                main_output_dir/'noise'/filename, 
-                            index=False)
-                            
-            cf_kt_df.to_csv(args.base_repo_dir/'out'/'kendalls_tau_distances'/\
+            noise_kt_df.to_pickle(args.base_repo_dir/'out'/'kendalls_tau_distances'/\
+                                    main_output_dir/'noise'/filename, 
+                                    compression='gzip')
+
+            cf_kt_df.to_pickle(args.base_repo_dir/'out'/'kendalls_tau_distances'/\
                                 main_output_dir/'counterfactuals'/filename, 
-                            index=False)
+                                compression='gzip')
             
             # Add dict of expected KTs to saved list of dicts
             exp_dicts.append(exp_dict)
@@ -217,5 +218,6 @@ if __name__ == "__main__":
                             index=pd.MultiIndex.from_tuples(sorted(sub_dirs)))
 
     # Save expected KT df to CSV
-    exp_kt_df.to_csv(args.base_repo_dir/'out'/'kendalls_tau_distances'/\
-                                main_output_dir/'expected.csv')
+    exp_kt_df.to_pickle(args.base_repo_dir/'out'/'kendalls_tau_distances'/\
+                                main_output_dir/'expected.pkl', 
+                        compression='gzip')

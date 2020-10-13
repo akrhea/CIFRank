@@ -108,7 +108,7 @@ def gen_Y(a, x, err_input, err=None,
     gpa = rescale(gpa, new_min=0, new_max=4)
     return gpa
 
-def gen_data(a_seed, y_err_seed, x_err_seed, x_seed, rank_seed,# random seeds can be set seperately
+def gen_data(a_seed, y_err_seed, x_err_seed, x_seed, # random seeds can be set seperately
              x_err_input, y_err_input, # which nodes receive noise as input (X and/or Y)
              unmeasured_confounding, # whether X and Y share a noise parent
              M, # number of rows in dataset
@@ -151,31 +151,33 @@ def gen_data(a_seed, y_err_seed, x_err_seed, x_seed, rank_seed,# random seeds ca
         x_err=None
     
     # Generate LSAT score node (X)
-    x = gen_X(seed=x_seed, a=a, err_input = x_err_input, err=x_err,
-              mu_0=x_mu_0, sd_0=x_sd_0,
-              mu_1=x_mu_1, sd_1=x_sd_1)
+    prescale_x = gen_X(seed=x_seed, a=a, err_input = x_err_input, err=x_err,
+                        mu_0=x_mu_0, sd_0=x_sd_0,
+                        mu_1=x_mu_1, sd_1=x_sd_1)
 
     # Rescale X to [0,1] if normalize is set to True
     if normalize:
-        x = rescale(x)
+        x = rescale(prescale_x)
+    else:
+        x = prescale_x
     
     # Generate first-year GPA node (Y)
-    y = gen_Y(a=a, x=x, err_input = y_err_input, err=y_err,
-              a_weight=y_a_weight, x_weight=y_x_weight)
+    prescale_y = gen_Y(a=a, x=x, err_input = y_err_input, err=y_err,
+                        a_weight=y_a_weight, x_weight=y_x_weight)
     
     # Rescale Y to [0,1] if normalize is set to True
     if normalize:
-        y = rescale(y)
+        y = rescale(prescale_y)
+    else:
+        y = prescale_y
 
     # Compile columns into dataframe
-    data = pd.DataFrame({'a':a, 'x_err': x_err, 'y_err': y_err, 'x':x, 'y':y})
-    
-    # Calculate rank
-    data['rank'] = calc_rank(rank_seed, y)
+    data = pd.DataFrame({'a':a, 'x_err': x_err, 'prescale_x': prescale_x, 'x':x, 
+                                'y_err': y_err, 'prescale_y': prescale_y, 'y':y})
 
     # Drop unobserved noise nodes if observed set to True
     if observed:
-        data.drop(columns=['x_err', 'y_err'], inplace=True)
+        data.drop(columns=['x_err', 'y_err', 'prescale_x', 'prescale_y'], inplace=True)
     
     # Save to CSV if save set to True
     if save:
@@ -196,17 +198,19 @@ def gen_data_and_sample_noise(n_runs, # number of re-rankings to sample
                                 x_mu_1=0, x_sd_1=0.5, # more lsat settings
                                 y_a_weight=0.4, y_x_weight=0.8, # gpa settings
                                 normalize=True, # whether to rescale X and Y to [0,1])
+                                observed=False, # whether to drop unobserved columns
                                 output_dir='default', # folder within out/synthetic_data/stability/
                                 data_filename='unobserved_samp_1.csv', # name of original dataset file
                                 save_rankings=False, # whether to save rankings to CSV
-                                rankings_filename='unobserved_samp_1.csv'): # name of rankings file
+                                rankings_filename='unobserved_samp_1.pkl'): # name of rankings file
                                 
     '''
     Generate original dataset and save to CSV
-    Generate n_runs additional datasets by re-sampling the noise
+    Generate n_runs additional datasets using all same seeds except noise seed
+    Save original rank and additional n_runs ranks to pickle
 
-    Not the favored implementation. 
-    See gen_data_and_resample_noise for favored implementation.
+    This implementation is favored for synthetic data experiments
+    See gen_data_and_resample_noise for favored implementation for real data experiments
     '''
 
     # Set initial seeds
@@ -219,7 +223,7 @@ def gen_data_and_sample_noise(n_runs, # number of re-rankings to sample
     base_repo_dir = pathlib.Path(os.path.realpath(__file__)).parents[2]
     base_output_dir = base_repo_dir / 'out' / 'synthetic_data' / 'stability' / output_dir
     data_output_filepath = base_output_dir / 'data' / data_filename
-    rankings_output_filepath = base_output_dir / 'rankings' / rankings_filename
+    rankings_output_filepath = base_output_dir / 'noise_rankings' / rankings_filename
 
     # Create partial data generation function
     # Include all params that will remain constant during noise sampling
@@ -231,15 +235,21 @@ def gen_data_and_sample_noise(n_runs, # number of re-rankings to sample
                                 y_err_mu=y_err_mu, y_err_sd=y_err_sd,
                                 prob_priv=prob_priv, 
                                 normalize=normalize, 
-                                observed=False, # Do not drop unobserved error columns
+                                observed=observed,
                                 x_mu_0=x_mu_0, x_sd_0=x_sd_0,
                                 x_mu_1=x_mu_1, x_sd_1=x_sd_1,
                                 y_a_weight=y_a_weight, y_x_weight=y_x_weight)
 
     # Generate baseline dataset with initial seeds and save to CSV
-    data = gen_data_partial(y_err_seed=y_err_seed, x_err_seed=x_err_seed, rank_seed=rank_seed,
+    data = gen_data_partial(y_err_seed=y_err_seed, x_err_seed=x_err_seed,
                             save=True, output_filepath=data_output_filepath)
     
+    # Create dataframe to hold rank permutations
+    rankings = pd.DataFrame()
+
+    # Get original rank from original data
+    rankings['rank'] = calc_rank(rank_seed, data['y'])
+
     # Generate additional datasets
     for i in range(n_runs):
 
@@ -249,17 +259,16 @@ def gen_data_and_sample_noise(n_runs, # number of re-rankings to sample
         y_err_seed +=1
         
         # Generate dataset with non-constant seeds incremented and do not save to CSV
-        sim = gen_data_partial(y_err_seed=y_err_seed, x_err_seed=x_err_seed, rank_seed=rank_seed,
-                                save=False)
+        sim = gen_data_partial(y_err_seed=y_err_seed, x_err_seed=x_err_seed, save=False)
         
         # Add this ranking to the original dataframe
-        data['rank_'+str(i+1)] = sim['rank']
+        rankings['rank_'+str(i+1)] = calc_rank(rank_seed, sim['y'])
 
     # Save rankings to CSV if save_rankings set to True
     if save_rankings:
-       data.to_csv(rankings_output_filepath, index=False)
+       rankings.to_pickle(rankings_output_filepath, compression='gzip')
     
-    return data
+    return (data, rankings)
 
 
 def resample_noise_from_data(n_runs, # number of re-rankings to sample
@@ -296,6 +305,12 @@ def resample_noise_from_data(n_runs, # number of re-rankings to sample
     # get number of rows from original dataset
     M = len(orig_data)
 
+    # Create dataframe to hold rank permutations
+    rankings = pd.DataFrame()
+
+    # Get original rank from original data
+    rankings['rank'] = calc_rank(rank_seed, orig_data['y'])
+
     # Generate additional rankings by re-sampling noise distribution
     for i in range(0, n_runs):
 
@@ -324,13 +339,13 @@ def resample_noise_from_data(n_runs, # number of re-rankings to sample
         new_rank = calc_rank(rank_seed, new_y)
         
         # Add this ranking to the original dataframe
-        orig_data['rank_'+str(i+1)] = new_rank
+        rankings['rank_'+str(i+1)] = new_rank
 
     # Save rankings to CSV if save set to True
     if save:
-       orig_data.to_csv(output_filepath, index=False)
+       rankings.to_pickle(output_filepath, compression='gzip')
 
-    return orig_data
+    return rankings
 
 def gen_data_and_resample_noise(n_runs, # number of re-rankings to sample
                                 x_err_input, y_err_input, # which nodes receive noise as input (X and/or Y)
@@ -343,18 +358,22 @@ def gen_data_and_resample_noise(n_runs, # number of re-rankings to sample
                                 x_mu_0=-1, x_sd_0=1, # lsat settings
                                 x_mu_1=0, x_sd_1=0.5, # more lsat settings
                                 y_a_weight=0.4, y_x_weight=0.8, # gpa settings
-                                normalize=True, # whether to rescale X and Y to [0,1]):
+                                normalize=True, # whether to rescale X and Y to [0,1])
+                                observed=True, # whether to drop unobserved columns
                                 output_dir='default', # folder within out/synthetic_data/stability/ 
                                 data_filename='observed_samp_1.csv', # name of original dataset file
                                 save_rankings=True, # whether to save rankings to CSV
-                                rankings_filename='observed_samp_1.csv'): # name of rankings file
+                                rankings_filename='observed_samp_1.pkl'): # name of rankings file
 
     '''
     Generate original observed dataset: A, X, Y, and rank
     Save dataset to CSV
-    Resample rankings
+    Resample rankings by sampling from noise distribution
 
-    This implementation is favored over gen_data_and_sample_noise
+    There is an outstanding question of how scaling is handled in this function
+
+    This implementation is favored for real data experiments
+    See gen_data_and_sample_noise for favored implementation for synthetic data experiments
     '''
 
     # Set initial seeds
@@ -367,7 +386,7 @@ def gen_data_and_resample_noise(n_runs, # number of re-rankings to sample
     base_repo_dir = pathlib.Path(os.path.realpath(__file__)).parents[2]
     base_output_dir = base_repo_dir / 'out' / 'synthetic_data' / 'stability' / output_dir
     data_output_filepath = base_output_dir / 'data' / data_filename
-    rankings_output_filepath = base_output_dir / 'rankings' / rankings_filename
+    rankings_output_filepath = base_output_dir / 'noise_rankings' / rankings_filename
 
     # Generate original dataset with initial seeds
     orig_data = gen_data(y_err_seed=y_err_seed,  x_err_seed=x_err_seed,
@@ -378,7 +397,7 @@ def gen_data_and_resample_noise(n_runs, # number of re-rankings to sample
                             y_err_mu=y_err_mu, y_err_sd=y_err_sd,
                             prob_priv=prob_priv, 
                             normalize=normalize, 
-                            observed=True, # Drop unobserved error columns
+                            observed=observed,
                             x_mu_0=x_mu_0, x_sd_0=x_sd_0,
                             x_mu_1=x_mu_1, x_sd_1=x_sd_1,
                             y_a_weight=y_a_weight, y_x_weight=y_x_weight,
@@ -396,7 +415,7 @@ def gen_data_and_resample_noise(n_runs, # number of re-rankings to sample
                                             save=save_rankings, 
                                             output_filepath=rankings_output_filepath)
 
-    return rankings_data
+    return (orig_data, rankings_data)
 
 def sampling_distribution(args):
                             
@@ -442,11 +461,13 @@ def sampling_distribution(args):
                         default = 0.8
         normalize:  whether to rescale X and Y nodes to [0,1]
                         default = True
+        observed:  whether to drop unobserved columns from data
+                        default = True
     '''
 
     # Create partial function for sampling noise distribution
     # Include all parameters which will remain constant
-    gen_data_and_resample_noise_partial = partial(gen_data_and_resample_noise,
+    gen_data_and_sample_noise_partial = partial(gen_data_and_sample_noise,
                                                     n_runs=args.n_runs, 
                                                     M=args.m_rows,
                                                     x_err_input=args.x_err_input, 
@@ -464,14 +485,15 @@ def sampling_distribution(args):
                                                     y_a_weight=args.y_a_weight, 
                                                     y_x_weight=args.y_x_weight,
                                                     normalize=args.normalize,
+                                                    observed=args.observed,
                                                     output_dir=args.output_dir,
                                                     save_rankings=True)
     seed = args.seed
     # Generate s_samples of original dataset and sample rankings from noise distribution of each
     for i in range(args.s_samples):
-        gen_data_and_resample_noise_partial(a_seed=seed, 
-                                            data_filename='observed_samp_{}.csv'.format(i+1),
-                                            rankings_filename='observed_samp_{}.csv'.format(i+1))
+        gen_data_and_sample_noise_partial(a_seed=seed, 
+                                            data_filename='samp_{}.csv'.format(i+1),
+                                            rankings_filename='samp_{}.pkl'.format(i+1))
 
         # Increment race seed (which will control all other seeds)
         seed += (args.n_runs+1)*3+2
@@ -502,6 +524,9 @@ if __name__ == "__main__":
     parser.add_argument("--do_not_normalize", action='store_true', 
                         help='boolean flag indicating X and Y will not be scaled to [0,1]')
 
+    parser.add_argument("--unobserved", action='store_true', 
+                        help='boolean flag indicating unobserved columns will not be dropped from data')
+
     # Optional arguments
     parser.add_argument("--seed", type=int, default=0, help='Initial seed for race sample; basis of all other seeds')
     parser.add_argument("--output_dir", type=str, default='default',  help='folder within out/synthetic_data/stability/ to store output')
@@ -524,6 +549,12 @@ if __name__ == "__main__":
         args.normalize=False
     else:
         args.normalize=True
+
+    # Set observed argument based on unobserved
+    if args.unobserved==True:
+        args.observed=False
+    else:
+        args.observed=True
 
     # Ensure X and Y both have error node parents if unmeasured confounding flag is passed
     if args.unmeasured_confounding:

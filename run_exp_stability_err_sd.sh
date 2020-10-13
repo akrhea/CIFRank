@@ -5,12 +5,16 @@
 # the X/Y error nodes on ranking stability
 
 # Input settings
-S_SAMPLES=1000
-N_RUNS=500
-M_ROWS=50
+# S_SAMPLES=1000
+# N_RUNS=500
+# M_ROWS=50
+S_SAMPLES=20
+N_RUNS=5
+M_ROWS=10
 
 # Array of error standard deviations to test
-ERR_SDS=(0.0 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0)
+#ERR_SDS=(0.0 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0)
+ERR_SDS=(0.0 0.5 1.0)
 
 # Array of error inputs to test
 ERR_INPUTS=("x" "y" "xy_ind" "xy_conf")
@@ -26,7 +30,7 @@ do
 
         # Create necessary directories
         mkdir -p "out/synthetic_data/stability/$output_dir/data/"
-        mkdir -p "out/synthetic_data/stability/$output_dir/rankings/"
+        mkdir -p "out/synthetic_data/stability/$output_dir/noise_rankings/"
         mkdir -p "out/parameter_data/stability/$output_dir/"
         mkdir -p "out/counterfactual_data/stability/$output_dir/"
         mkdir -p "out/kendalls_tau_distances/err_sd/noise/"

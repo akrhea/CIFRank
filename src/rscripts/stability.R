@@ -23,7 +23,7 @@ for (i in 1:s_samples) {
 
   # need to update filepath formats if script run from bash script
   data_i <- read.csv(here('out','synthetic_data','stability',output_dir,'data', 
-                          paste('observed_samp_', i, '.csv', sep='')))
+                          paste('samp_', i, '.csv', sep='')))
 
   # estimate model for x with lin reg
   model.x <- lm(x ~ a, data = data_i)
