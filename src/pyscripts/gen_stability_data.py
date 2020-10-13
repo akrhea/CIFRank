@@ -199,7 +199,7 @@ def gen_data_and_sample_noise(n_runs, # number of re-rankings to sample
                                 y_a_weight=0.4, y_x_weight=0.8, # gpa settings
                                 normalize=True, # whether to rescale X and Y to [0,1])
                                 observed=False, # whether to drop unobserved columns
-                                output_dir='default', # folder within out/synthetic_data/stability/
+                                output_dir='default', # folder within out/synthetic_data/
                                 data_filename='unobserved_samp_1.csv', # name of original dataset file
                                 save_rankings=False, # whether to save rankings to CSV
                                 rankings_filename='unobserved_samp_1.pkl'): # name of rankings file
@@ -221,7 +221,7 @@ def gen_data_and_sample_noise(n_runs, # number of re-rankings to sample
 
     # Set output filepaths
     base_repo_dir = pathlib.Path(os.path.realpath(__file__)).parents[2]
-    base_output_dir = base_repo_dir / 'out' / 'synthetic_data' / 'stability' / output_dir
+    base_output_dir = base_repo_dir / 'out' / 'synthetic_data' / output_dir
     data_output_filepath = base_output_dir / 'data' / data_filename
     rankings_output_filepath = base_output_dir / 'noise_rankings' / rankings_filename
 
@@ -360,7 +360,7 @@ def gen_data_and_resample_noise(n_runs, # number of re-rankings to sample
                                 y_a_weight=0.4, y_x_weight=0.8, # gpa settings
                                 normalize=True, # whether to rescale X and Y to [0,1])
                                 observed=True, # whether to drop unobserved columns
-                                output_dir='default', # folder within out/synthetic_data/stability/ 
+                                output_dir='default', # folder within out/synthetic_data/
                                 data_filename='observed_samp_1.csv', # name of original dataset file
                                 save_rankings=True, # whether to save rankings to CSV
                                 rankings_filename='observed_samp_1.pkl'): # name of rankings file
@@ -384,7 +384,7 @@ def gen_data_and_resample_noise(n_runs, # number of re-rankings to sample
 
     # Set output filepaths
     base_repo_dir = pathlib.Path(os.path.realpath(__file__)).parents[2]
-    base_output_dir = base_repo_dir / 'out' / 'synthetic_data' / 'stability' / output_dir
+    base_output_dir = base_repo_dir / 'out' / 'synthetic_data'/ output_dir
     data_output_filepath = base_output_dir / 'data' / data_filename
     rankings_output_filepath = base_output_dir / 'noise_rankings' / rankings_filename
 
@@ -433,7 +433,7 @@ def sampling_distribution(args):
 
 
     Optional Arguments
-        output_dir: folder within out/synthetic_data/stability/ to store output 
+        output_dir: folder within out/synthetic_data/ to store output 
                         default = 'default'
         seed:       initial seed for race (all other seeds based on this) 
                         default = 0
@@ -529,7 +529,7 @@ if __name__ == "__main__":
 
     # Optional arguments
     parser.add_argument("--seed", type=int, default=0, help='Initial seed for race sample; basis of all other seeds')
-    parser.add_argument("--output_dir", type=str, default='default',  help='folder within out/synthetic_data/stability/ to store output')
+    parser.add_argument("--output_dir", type=str, default='default',  help='folder within out/synthetic_data/ to store output')
     parser.add_argument("--x_err_mu", type=float, default=0)
     parser.add_argument("--x_err_sd", type=float, default=1)
     parser.add_argument("--y_err_mu", type=float, default=0)

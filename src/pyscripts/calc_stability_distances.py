@@ -28,7 +28,7 @@ def calc_expected_kendalls_taus(args):
         
         # Read in counterfactual data
         counter = pd.read_pickle(args.base_repo_dir /'out'/\
-                                'counterfactual_data'/'stability'/args.output_dir/
+                                'counterfactual_data'/args.output_dir/
                                 'counter_samp_{}.pkl'.format(s), compression='gzip')
         
         # Get list of counterfactual Y columns
@@ -41,7 +41,7 @@ def calc_expected_kendalls_taus(args):
         
         # Read in noise distribution of ranks
         noise = pd.read_pickle(args.base_repo_dir /'out'/\
-                                'synthetic_data'/'stability'/args.output_dir/\
+                                'synthetic_data'/args.output_dir/\
                                 'noise_rankings'/'samp_{}.pkl'.format(s), 
                                 compression='gzip')
         
@@ -165,7 +165,7 @@ if __name__ == "__main__":
     main_output_dir = args.output_dir
 
     # Define path to traverse
-    output_path = args.base_repo_dir /'out'/'counterfactual_data'/'stability'/ main_output_dir   
+    output_path = args.base_repo_dir /'out'/'counterfactual_data'/'main_output_dir   
 
     # Initialize list of dicts of expected KTs
     exp_dicts = []

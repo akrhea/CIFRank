@@ -14,7 +14,7 @@ def get_counterfactual_data(args):
         base_repo_dir  = pathlib.Path(os.getcwd()).parents[1]
         
     # Read in estimated parameters
-    param_dir = base_repo_dir / 'out/parameter_data/stability/{}'.format(args.output_dir)    
+    param_dir = base_repo_dir / 'out/parameter_data/{}'.format(args.output_dir)    
     y_params_df = pd.read_csv(param_dir / 'params_y.csv', index_col='Unnamed: 0')
     x_params_df = pd.read_csv(param_dir / 'params_x.csv', index_col='Unnamed: 0')
 
@@ -29,7 +29,7 @@ def get_counterfactual_data(args):
     for s in range(1, s_samples + 1):
         
         # Read in this sample of the data
-        this_df = pd.read_csv(base_repo_dir / 'out/synthetic_data/stability/{}/data/samp_{}.csv'\
+        this_df = pd.read_csv(base_repo_dir / 'out/synthetic_data/{}/data/samp_{}.csv'\
                                                                             .format(args.output_dir, s))
         
         # Intialize dataframe to hold counterfactual data
@@ -84,7 +84,7 @@ def get_counterfactual_data(args):
             counter_df['cf_y_xres_a{}'.format(group)] = counter_y_res
 
         # Save counterfactual data for this sample to CSV
-        counter_df.to_pickle(base_repo_dir / 'out/counterfactual_data/stability/{}/counter_samp_{}.pkl'\
+        counter_df.to_pickle(base_repo_dir / 'out/counterfactual_data/{}/counter_samp_{}.pkl'\
                                                         .format(args.output_dir, s), compression='gzip')
 
         print('Finished generating counterfactual data for sample {} of {}'.format(s, s_samples))

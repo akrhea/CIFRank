@@ -22,7 +22,7 @@ params.y <- data.frame(a=numeric(s_samples),
 for (i in 1:s_samples) {
 
   # need to update filepath formats if script run from bash script
-  data_i <- read.csv(here('out','synthetic_data','stability',output_dir,'data', 
+  data_i <- read.csv(here('out','synthetic_data',output_dir,'data', 
                           paste('samp_', i, '.csv', sep='')))
 
   # estimate model for x with lin reg
@@ -65,11 +65,11 @@ for (i in 1:s_samples) {
 }
 
 # save dataframe of x parameters to csv
-write.csv(params.x, file = here('out','parameter_data','stability',
+write.csv(params.x, file = here('out','parameter_data',
                                 output_dir,'params_x.csv'))
 
 
 # save dataframe of y parameters to csv
-write.csv(params.y, file = here('out','parameter_data','stability',
+write.csv(params.y, file = here('out','parameter_data',
                                 output_dir,'params_y.csv'))
 

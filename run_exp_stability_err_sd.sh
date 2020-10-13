@@ -28,10 +28,10 @@ do
         output_dir="err_sd/$err_input/$err_sd"
 
         # Create necessary directories
-        mkdir -p "out/synthetic_data/stability/$output_dir/data/"
-        mkdir -p "out/synthetic_data/stability/$output_dir/noise_rankings/"
-        mkdir -p "out/parameter_data/stability/$output_dir/"
-        mkdir -p "out/counterfactual_data/stability/$output_dir/"
+        mkdir -p "out/synthetic_data/$output_dir/data/"
+        mkdir -p "out/synthetic_data/$output_dir/noise_rankings/"
+        mkdir -p "out/parameter_data/$output_dir/"
+        mkdir -p "out/counterfactual_data/$output_dir/"
         mkdir -p "out/kendalls_tau_distances/err_sd/noise/"
         mkdir -p "out/kendalls_tau_distances/err_sd/counterfactuals/"
 
