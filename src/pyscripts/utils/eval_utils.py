@@ -1,19 +1,8 @@
+import numpy as np
 import pandas as pd
 import math
 from scipy.stats import kendalltau
 
-def kendalls_tau_nonneg(permutation1, permutation2):
-
-    ### Adapt Ke's version to take in ranks
-    item_to_rank = {item: rank for rank, item in enumerate(permutation1)}
-    dist = 0
-    for i, e_i in enumerate(permutation2[:-1]):
-        rank_e_i_in_permutation1 = item_to_rank[e_i]
-        for e_j in permutation2[i + 1:]:
-            if rank_e_i_in_permutation1 > item_to_rank[e_j]:
-                dist += 1
-
-    return dist
 
 def kendalls_tau_scipy(rank1, rank2):
     '''
@@ -23,18 +12,106 @@ def kendalls_tau_scipy(rank1, rank2):
     kt, p = kendalltau(rank1, rank2)
     return kt
 
-def num_retained_at_top_k(rank1, rank2, k):
+    def calculate_kendall_tau_distance_simple(permutation1, permutation2) -> int:
+        '''
+        Ke Yang function for simple computation of normalized Kendall's Tau
+        '''
+        item_to_rank = {item: rank for rank, item in enumerate(permutation1)}
+        m = len(permutation1)
+        dist = 0
+        for i, e_i in enumerate(permutation2[:-1]):
+            rank_e_i_in_permutation1 = item_to_rank[e_i]
+            for e_j in permutation2[i + 1:]:
+                if rank_e_i_in_permutation1 > item_to_rank[e_j]:
+                    dist += 1
+        return dist /(m * (m-1)/2)
+
+def calculate_kendall_tau_distance_quick(x, y):
+    """
+    Ke Yang function for fast computation of normalized Kendall's Tau
+
+    Code from Scipy. See details in
+    https://github.com/scipy/scipy/blob/v0.15.1/scipy/stats/stats.py#L2827
+
+    """
+
+    x = np.asarray(x)
+    y = np.asarray(y)
+
+    m = x.size
+    reference = np.arange(m)
+    
+    if (not np.equal(x, reference).all()) and (not np.equal(y, reference).all()):
+        x_to_rank = {item: rank for rank, item in enumerate(x)}
+        x = reference  # For unknown reason, either x or y must be counter ranking.
+        y = np.asarray([x_to_rank[item] for item in y])
+
+    n = np.int64(len(x))
+    temp = list(range(n))  # support structure used by mergesort
+
+    # this closure recursively sorts sections of perm[] by comparing
+    # elements of y[perm[]] using temp[] as support
+    # returns the number of swaps required by an equivalent bubble sort
+
+    def mergesort(offs, length):
+        exchcnt = 0
+        if length == 1:
+            return 0
+        if length == 2:
+            if y[perm[offs]] <= y[perm[offs + 1]]:
+                return 0
+            t = perm[offs]
+            perm[offs] = perm[offs + 1]
+            perm[offs + 1] = t
+            return 1
+        length0 = length // 2
+        length1 = length - length0
+        middle = offs + length0
+        exchcnt += mergesort(offs, length0)
+        exchcnt += mergesort(middle, length1)
+        if y[perm[middle - 1]] < y[perm[middle]]:
+            return exchcnt
+        # merging
+        i = j = k = 0
+        while j < length0 or k < length1:
+            if k >= length1 or (j < length0 and y[perm[offs + j]] <=
+                                y[perm[middle + k]]):
+                temp[i] = perm[offs + j]
+                d = i - j
+                j += 1
+            else:
+                temp[i] = perm[middle + k]
+                d = (offs + i) - (middle + k)
+                k += 1
+            if d > 0:
+                exchcnt += d
+            i += 1
+        perm[offs:offs + length] = temp[0:length]
+        return exchcnt
+
+    # initial sort on values of x and, if tied, on values of y
+    perm = np.lexsort((y, x))
+
+    # count exchanges
+    exchanges = mergesort(0, n)
+
+    return exchanges/(m * (m-1)/2)
+
+def num_retained_at_top_k(rank1, rank2, k=None):
 
     '''
     Return size of intersection at top k
-    Should be normalized by k? And by number of rows?
+    Default k is 20% of m (number of items)
     '''
     
+    if not k:
+        k=int(0.2*len(rank1))
+
     top_k_1= [i for i,x in enumerate(rank1) if x<=k]
     top_k_2= [i for i,x in enumerate(rank2) if x<=k]
     num_retained = len(set(top_k_1) & set(top_k_2))
     
-    return num_retained
+    return num_retained/len(rank1)
 
 
 def compute_k_recall(true_list, pred_list, batch_size = 10):

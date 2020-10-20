@@ -4,8 +4,9 @@ import numpy as np
 import pandas as pd
 import argparse, os, pathlib
 #from scipy.stats import kendalltau
+from functools import partial
 from utils.stability_utils import calc_rank
-from utils.eval_utils import num_retained_at_top_k, kendalls_tau_scipy
+from utils.eval_utils import num_retained_at_top_k, calculate_kendall_tau_distance_quick
 
 
 def calc_expected_distances(args):
@@ -26,7 +27,7 @@ def calc_expected_distances(args):
         counter_dists_xres1 = np.zeros([args.s_samples, len(args.metrics)])
         counter_dists_nonres1 = np.zeros([args.s_samples, len(args.metrics)])
         dists_xres_a0_a1 = np.zeros([args.s_samples, len(args.metrics)])
-        dists_nonres_a0_a1 = np.zeros([args.s_samples, len(args.metrics])
+        dists_nonres_a0_a1 = np.zeros([args.s_samples, len(args.metrics)])
 
     # Loop through s_samples
     for s in range(1, args.s_samples+1):
@@ -40,7 +41,7 @@ def calc_expected_distances(args):
         if args.all_interventions:
             counter_y_cols = [x for x in counter.columns if 'cf_y_' in x]
         else:
-            counter_y_cols = [x for x in counter.columns if (('cf_y_' in x)&&(x[-1]))]
+            counter_y_cols = [x for x in counter.columns if (('cf_y_' in x)&(x[-1]==0))]
         
         # Calculate ranks for each counterfactual Y
         for y in counter_y_cols:
@@ -111,19 +112,20 @@ def calc_expected_distances(args):
     # E[ distance (original rank, rank from re-sampled noise) ]
     # 1 value per metric for each sample
     exp_noise_dist = np.mean(noise_dists, axis=2)
+    
 
     # Get expected value of expected distances between original rank and rank from re-sampled noise
     # Iterated expectation: expectation first taken over n_runs of noise distribution, then over s_samples
     # E[ E[ distance(original rank, rank from re-sampled noise) ] ]
     # 1 value per metric for entire experiment trial
-    exp_exp_noise_dist = np.mean(exp_noise_dist)
+    exp_exp_noise_dist = np.mean(exp_noise_dist, axis=1)
 
     # Get expected distance between original rank and counterfactual Y with non-resolving X
     # For intervention A<-0
     # Expectation taken over s_samples
     # E[ distance(original rank, counterfactual rank with non-resolving X for A<-0) ]
     # 1 value per metric for entire experiment trial
-    exp_cf_dist_nonres_a0 = np.nanmean(counter_dists_nonres0(axis=0))
+    exp_cf_dist_nonres_a0 = np.nanmean(counter_dists_nonres0, axis=0)
 
     if args.all_interventions:
         # Get expected distance between original rank and counterfactual Y with non-resolving X
@@ -131,14 +133,14 @@ def calc_expected_distances(args):
         # Expectation taken over s_samples
         # E[ distance(original rank, counterfactual rank with non-resolving X for A<-1) ]
         # 1 value per metric for entire experiment trial
-        exp_cf_dist_nonres_a1 = np.nanmean(counter_dists_nonres1(axis=0))
+        exp_cf_dist_nonres_a1 = np.nanmean(counter_dists_nonres1, axis=0)
 
     # Get expected distance between original rank and counterfactual Y with resolving X
     # For intervention A<-0
     # Expectation taken over s_samples
     # E[ distance(original rank, counterfactual rank with resolving X for A<-0) ]
     # 1 value per metric for entire experiment trial
-    exp_cf_dist_xres_a0 = np.nanmean(counter_dists_xres0(axis=0))
+    exp_cf_dist_xres_a0 = np.nanmean(counter_dists_xres0, axis=0)
 
     if args.all_interventions:
         # Get expected distance between original rank and counterfactual Y with resolving X
@@ -146,7 +148,7 @@ def calc_expected_distances(args):
         # Expectation taken over s_samples
         # E[ distance(original rank, counterfactual rank with resolving X for A<-1) ]
         # 1 value per metric for entire experiment trial
-        exp_cf_dist_xres_a1 = np.nanmean(counter_dists_xres1(axis=0))
+        exp_cf_dist_xres_a1 = np.nanmean(counter_dists_xres1, axis=0)
     
     # Bundle expected distances into dataframe
     if args.all_interventions:
@@ -172,18 +174,18 @@ def calc_expected_distances(args):
     cf_dist_dfs = []
     for m, metric in enumerate(args.metrics):
         if args.all_interventions:
-            cf_dist_df = pd.concat([ pd.DataFrame(exp_noise_dist, columns=['exp_orig_noise']),
-                                    pd.DataFrame(counter_dists_nonres0, columns=['orig_nonres0']), 
-                                    pd.DataFrame(counter_dists_nonres1, columns=['orig_nonres1']), 
-                                    pd.DataFrame(counter_dists_xres0, columns=['orig_xres0']), 
-                                    pd.DataFrame(counter_dists_xres1, columns=['orig_xres1']), 
-                                    pd.DataFrame(dists_nonres_a0_a1, columns=['nonres0_nonres1']),
-                                    pd.DataFrame(dists_xres_a0_a1, columns=['xres0_xres1']),
+            cf_dist_df = pd.concat([ pd.DataFrame(exp_noise_dist[m], columns=['exp_orig_noise']),
+                                    pd.DataFrame(counter_dists_nonres0[:,m], columns=['orig_nonres0']), 
+                                    pd.DataFrame(counter_dists_nonres1[:,m], columns=['orig_nonres1']), 
+                                    pd.DataFrame(counter_dists_xres0[:,m], columns=['orig_xres0']), 
+                                    pd.DataFrame(counter_dists_xres1[:,m], columns=['orig_xres1']), 
+                                    pd.DataFrame(dists_nonres_a0_a1[:,m], columns=['nonres0_nonres1']),
+                                    pd.DataFrame(dists_xres_a0_a1[:,m], columns=['xres0_xres1']),
                                 ], axis=1)
         else:
-            cf_dist_df = pd.concat([ pd.DataFrame(exp_noise_dist, columns=['exp_orig_noise']),
-                                    pd.DataFrame(counter_dists_nonres0, columns=['orig_nonres0']), 
-                                    pd.DataFrame(counter_dists_xres0, columns=['orig_xres0']),
+            cf_dist_df = pd.concat([ pd.DataFrame(exp_noise_dist[m], columns=['exp_orig_noise']),
+                                    pd.DataFrame(counter_dists_nonres0[:,m], columns=['orig_nonres0']), 
+                                    pd.DataFrame(counter_dists_xres0[:,m], columns=['orig_xres0']),
                                 ], axis=1)
         cf_dist_dfs.append(cf_dist_df)
 
@@ -207,13 +209,13 @@ if __name__ == "__main__":
 
     parser.add_argument("--retained_at_top_k", action='store_true', 
                         help='Boolean flag indicating whether to additionally evaluate num_retained_at_top_k.\
-                            If not set, the number retained at top k will not be evaluated.')')
+                            If not set, the number retained at top k will not be evaluated.')
 
     parser.add_argument("--no_kendalls_tau", action='store_true', 
                         help='Boolean flag indicating whether to exclude Kendall\'s Tau from evaluation.\
                             If not set, Kendall\'s Tau will be evaluated.')
 
-    parser.add_argument("--k", type=int, default=5,
+    parser.add_argument("--k", type=int, default=0,
                         help='Integer to use for "top k" evaluations.')
             
 
@@ -222,10 +224,12 @@ if __name__ == "__main__":
 
     # Create list of distance functions
     args.metrics = []
+    if args.k==0:
+        args.k=None
     if not args.no_kendalls_tau:
-        args.metrics.append(partial(kendalls_tau_scipy))
+        args.metrics.append(partial(calculate_kendall_tau_distance_quick))
     if args.retained_at_top_k:
-        args.metrics.append(partial(num_retained_at_top_k, args.k))
+        args.metrics.append(partial(num_retained_at_top_k, k=args.k))
 
     # Save repo root directory
     args.base_repo_dir = pathlib.Path(os.path.realpath(__file__)).parents[2]
