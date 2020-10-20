@@ -1,5 +1,41 @@
 import pandas as pd
 import math
+from scipy.stats import kendalltau
+
+def kendalls_tau_nonneg(permutation1, permutation2):
+
+    ### Adapt Ke's version to take in ranks
+    item_to_rank = {item: rank for rank, item in enumerate(permutation1)}
+    dist = 0
+    for i, e_i in enumerate(permutation2[:-1]):
+        rank_e_i_in_permutation1 = item_to_rank[e_i]
+        for e_j in permutation2[i + 1:]:
+            if rank_e_i_in_permutation1 > item_to_rank[e_j]:
+                dist += 1
+
+    return dist
+
+def kendalls_tau_scipy(rank1, rank2):
+    '''
+    Wrapper function to discard 2nd returned argument 
+    of SciPy's Kendall's Tau implementation
+    '''
+    kt, p = kendalltau(rank1, rank2)
+    return kt
+
+def num_retained_at_top_k(rank1, rank2, k):
+
+    '''
+    Return size of intersection at top k
+    Should be normalized by k? And by number of rows?
+    '''
+    
+    top_k_1= [i for i,x in enumerate(rank1) if x<=k]
+    top_k_2= [i for i,x in enumerate(rank2) if x<=k]
+    num_retained = len(set(top_k_1) & set(top_k_2))
+    
+    return num_retained
+
 
 def compute_k_recall(true_list, pred_list, batch_size = 10):
     if len(true_list):
