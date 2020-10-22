@@ -3,6 +3,151 @@ import pandas as pd
 import math
 from scipy.stats import kendalltau
 
+def prob_lower(rank1, rank2):
+    '''
+    Return the probability of being ranked
+    lower (worse) in rank 2 than in rank 1.
+    '''
+    num_decrease = 0
+    for i in range(len(rank1)):
+        if rank2[i] > rank1[i]:
+            num_decrease+=1
+    return(num_decrease/len(rank1))
+
+
+def prob_lower_group(rank1, rank2, groups, which_group):
+    '''
+    Return the probability of being ranked
+    lower (worse) in rank 2 than in rank 1,
+    conditional on being a member of which_group.
+    '''
+    num_decrease = 0
+    group_inds = np.argwhere(groups==which_group)
+    for i in group_inds:
+        if rank2[i].values[0] > rank1[i].values[0]:
+            num_decrease+=1
+    return(num_decrease/len(group_inds))
+
+
+def prob_lower_group_ratio(rank1, rank2, groups, groupa, groupb):
+    '''
+    Return the ratio of probabilities of being ranked
+    lower (worse) in rank 2 than in rank 1,
+    conditional on each group membership.
+
+    Ratio is pr(lower|groupa)/pr(lower|groupb).
+    '''
+    proba = prob_lower_group(rank1, rank2, groups, groupa)
+    probb = prob_lower_group(rank1, rank2, groups, groupb)
+    if probb==0:
+        return np.inf
+    return(proba/probb)
+
+
+def percent_at_top_k(rank, group, which_group, k=None):
+    '''
+    Return percent of top k individuals which
+        belong to which_group.
+        
+    Default k is 20% of m (number of items).
+    '''
+    if not k:
+        k=int(0.2*len(rank))
+        
+    sorted_ind = np.argsort(rank)
+    topk = group[sorted_ind][:k]
+    return 100*sum(topk==which_group)/k
+
+
+def ratio_of_percent_at_top_k(rank1, rank2, 
+                              groups, which_group, k=None):
+
+    '''
+    Return ratio of percent of top k individuals 
+        belonging to which_group.
+    Ratio is percent in rank2 / percent in rank1.
+    
+    Default k is 20% of m (number of items).
+    '''
+    
+    if not k:
+        k=int(0.2*len(rank1))
+        
+    p1 = percent_at_top_k(rank1, groups, which_group, k)
+    p2 = percent_at_top_k(rank2, groups, which_group, k)
+
+    if p1==0:
+        return np.inf
+    
+    return p2/p1
+
+
+def change_in_percent_at_top_k(rank1, rank2, 
+                              groups, which_group, k=None):
+
+    '''
+    Return change in percent of top k individuals 
+        belonging to which_group.
+    Change is percent in rank2 - percent in rank1.
+    
+    Default k is 20% of m (number of items).
+    '''
+    
+    if not k:
+        k=int(0.2*len(rank1))
+        
+    p1 = percent_at_top_k(rank1, groups, which_group, k)
+    p2 = percent_at_top_k(rank2, groups, which_group, k)
+    
+    return p2-p1
+
+
+def percent_change_in_percent_at_top_k(rank1, rank2, 
+                                       groups, which_group, k=None):
+
+    '''
+    Return percent change in percent of top k individuals 
+        belonging to which_group.
+    Change is percent in rank2 - percent in rank1.
+    
+    Default k is 20% of m (number of items).
+    '''
+    
+    if not k:
+        k=int(0.2*len(rank1))
+        
+    p1 = percent_at_top_k(rank1, groups, which_group, k)
+    p2 = percent_at_top_k(rank2, groups, which_group, k)
+
+    if p1==0:
+        return np.inf
+
+    return 100*(p2-p1)/p1
+
+
+def ratio_and_change_in_percent_at_top_k(rank1, rank2, 
+                                         groups, which_group, k=None):
+
+    '''
+    Return ratio and change in percent of top k individuals 
+        belonging to which_group.
+    Ratio is percent in rank2 / percent in rank1.
+    Change is percent in rank2 - percent in rank1.
+    
+    Default k is 20% of m (number of items).
+    '''
+    
+    if not k:
+        k=int(0.2*len(rank1))
+        
+    p1 = percent_at_top_k(rank1, groups, which_group, k)
+    p2 = percent_at_top_k(rank2, groups, which_group, k)
+
+    if p1==0:
+        return np.inf, p2-p1
+    
+    return p2/p1, p2-p1
+
 
 def kendalls_tau_scipy(rank1, rank2):
     '''
@@ -12,21 +157,23 @@ def kendalls_tau_scipy(rank1, rank2):
     kt, p = kendalltau(rank1, rank2)
     return kt
 
-    def calculate_kendall_tau_distance_simple(permutation1, permutation2) -> int:
-        '''
-        Ke Yang function for simple computation of normalized Kendall's Tau
-        '''
-        item_to_rank = {item: rank for rank, item in enumerate(permutation1)}
-        m = len(permutation1)
-        dist = 0
-        for i, e_i in enumerate(permutation2[:-1]):
-            rank_e_i_in_permutation1 = item_to_rank[e_i]
-            for e_j in permutation2[i + 1:]:
-                if rank_e_i_in_permutation1 > item_to_rank[e_j]:
-                    dist += 1
-        return dist /(m * (m-1)/2)
 
-def calculate_kendall_tau_distance_quick(x, y):
+def calculate_kendall_tau_distance_simple(rank1, rank2) -> int:
+    '''
+    Ke Yang function for simple computation of normalized Kendall's Tau
+    '''
+    item_to_rank = {item: rank for rank, item in enumerate(rank1)}
+    m = len(rank1)
+    dist = 0
+    for i, e_i in enumerate(rank2[:-1]):
+        rank_e_i_in_rank1 = item_to_rank[e_i]
+        for e_j in rank2[i + 1:]:
+            if rank_e_i_in_rank1 > item_to_rank[e_j]:
+                dist += 1
+    return dist /(m * (m-1)/2)
+
+
+def calculate_kendall_tau_distance_quick(rank1, rank2):
     """
     Ke Yang function for fast computation of normalized Kendall's Tau
 
@@ -35,8 +182,8 @@ def calculate_kendall_tau_distance_quick(x, y):
 
     """
 
-    x = np.asarray(x)
-    y = np.asarray(y)
+    x = np.asarray(rank1)
+    y = np.asarray(rank2)
 
     m = x.size
     reference = np.arange(m)
@@ -100,7 +247,8 @@ def calculate_kendall_tau_distance_quick(x, y):
 def num_retained_at_top_k(rank1, rank2, k=None):
 
     '''
-    Return size of intersection at top k
+    Return size of intersection at top k, 
+        divide by number of items (m)
     Default k is 20% of m (number of items)
     '''
     
