@@ -21,22 +21,68 @@ Data-generating process adapted to approximately match Ke Yang's mv_m2
 
 
 
-def gen_A(seed, M, prob_priv=0.6):
+def gen_R(seed, M, race_prob=[0.5, 0.2, 0.3]):
     '''
-    Function to generate race (A)
-    A has no parent nodes
+    Function to generate race (R)
+    R has no parent nodes
+
+    race_prob is a vector of probabilities 
+    race_prob[0] : proportion of population that is white
+    race_prob[1] : proportion of population that is Black
+    race_prob[2] : proportion of population that is Asian
     '''
-    
+
     # Set random seed for race generation
     np.random.seed(seed)
+
+    race_vec = ['w', 'b', 'a']
+
+    assert sum(race_prob)==1, \
+        'race_prob vector must sum to 1'
+
+    assert len(race_prob)==len(race_vec), \
+        'race_prob vector must be same length as number of races to generate ({})'.format(len(race_vec))
     
-    # Generate race with binomial (only 2 races)
-    # White (privileged) encoded as 1, Black encoded as 0
-    return binomial(n=1, p=prob_priv, size=M)
+    # White (privileged) encoded as 'w' 
+    # Black encoded as 'b'
+    # Asian encoded as 'a'
+    return np.random.choice(a=race_vec, size=M, p=race_prob)
+
+def gen_S(seed, M, sex_prob=[0.6, 0.4]):
+    '''
+    Function to generate sex (S)
+    S has no parent nodes
+
+    sex_prob is a vector of probabilities 
+    sex_prob[0] : proportion of population that is male
+    sex_prob[1] : proportion of population that is female
+    '''
+
+    # Set random seed for sex generation
+    np.random.seed(seed)
+
+    sex_vec = ['m', 'f']
+
+    assert sum(sex_prob)==1, \
+        'sex_prob vector must sum to 1'
+
+    assert len(sex_prob)==len(sex_vec), \
+        'sex_prob vector must be same length as number of sexes to generate ({})'.format(len(sex_vec))
+    
+    # Male (privileged) encoded as 'm' 
+    # Female encoded as 'f'
+    return np.random.choice(a=sex_vec, size=M, p=sex_prob)
+
+def gen_A(R, S):
+    '''
+    Generate intersectional identity column from race and sex assignments
+    e.g. 'am' for Asian male
+    '''
+    return [''.join(i) for i in zip(*[R,S])]
 
 def gen_Err(seed, M, mu=0, sd=1):
     '''
-    Function to generate noise node (Epsilon-X or Epsilon-Y)
+    Function to generate noise node
     Error nodes have no parent nodes
     
     Note: "epsilon," "error," and "noise" are used interchangeably
@@ -49,136 +95,130 @@ def gen_Err(seed, M, mu=0, sd=1):
     return normal(loc=mu, scale=sd, size=M)
 
 def gen_X(seed, a, err_input, err=None,
-          mu_0=-1, sd_0=1, 
-          mu_1=0, sd_1=0.5):
+          mu_dict={'wm':2, 'bm':-1, 'am':0, 'wf':0 'bf':-2, 'af':1}, 
+          sd_dict={'wm':2, 'bm':0.5, 'am':1, 'wf':1.5 'bf':1, 'af':1.5}):
     '''
-    Function to generate LSAT scores (X)
+    Function to generate X
     A is parent of X
     
     If err_input==False, then A is the only parent of X
     If err_input==True, then Epsilon-X is also a parent of X
-
-    mu_0 and sd_0 control parameters for white (race=1)
-    mu_1 and sd_1 control parameters for Black (race=0)
     '''
     
-    # Set random seed for LSAT score generation
+    # Set random seed for X generation
     np.random.seed(seed)
-
-    # bundle parameters into lists
-    mus = [mu_0, mu_1]
-    sds = [sd_0, sd_1]
     
     # draw each base score from normal distribution designated by race
-    lsat = [normal(loc=mus[x], scale=sds[x], size=1)[0] for x in a]
+    x = [normal(loc=mu_dict[x], scale=sd_dict[x], size=1)[0] for x in a]
     
     # Add noise if DAG specifies X is child of error node
     if err_input:
-        lsat = lsat + err
+        x = x + err
 
-    # Shift and rescale LSAT score to [120, 180]
-    lsat = rescale(lsat, new_min=120, new_max=180)
-
-    return lsat
+    return x
     
-def gen_Y(a, x, err_input, err=None,
-          a_weight=0.4, x_weight=0.8):
+def gen_Y(s, r, x, err_input, err=None,
+          s_boost_dict={'m':1, 'f':0}, 
+          r_boost_dict={'w':1, 'b':-1, 'a':0},
+          x_weight=0.8):
     '''
-    Function to generate 1L GPAs (Y)
-    A and X are parents of Y
+    Function to generate Y
+    S, R, and X are parents of Y
     
-    If err_input==False, then A and X are the only parents of Y
+    If err_input==False, then S, R, and X are the only parents of Y
     If err_input==True, then Epsilon-Y is also a parent of Y
 
     Does not require random seed, 
-    because Y is linear function of A and X
+    because Y is linear function of S, R, and X
 
-    a_weight determines linear coefficient on a
-    x_weight determines linear coefficient on x
+    x_weight determines linear coefficient on X
     '''
 
-    # Calculate GPA from race (A) and LSAT (X)
-    gpa = a_weight*a + x_weight*x
+    # Calculate Y from X, S, and R
+    y = x_weight*x + s_boost_dict[s] + r_boost_dict[r]
     
     # Add noise if DAG specifies Y is child of error node
     if err_input:
-        gpa = gpa + err
-        
-    # Rescale GPA to [0, 4]
-    gpa = rescale(gpa, new_min=0, new_max=4)
-    return gpa
+        y = y + err
 
-def gen_data(a_seed, y_err_seed, x_err_seed, shared_err_seed, x_seed, # random seeds can be set seperately
-             x_err_input, y_err_input, # which nodes receive noise as input (X and/or Y)
-             M, # number of rows in dataset
-             shared_err_mu=0, shared_err_sd=1, # Shared error node settings
-             x_err_mu=0, x_err_sd=1, # X-noise settings
-             y_err_mu=0, y_err_sd=1, # Y-noise settings
-             x_shared_err_weight=0.5, # How much of X noise input comes from shared error node
-             y_shared_err_weight=0.5, # How much of Y noise input comes from shared error node
-             prob_priv=0.6, # race setting
-             x_mu_0=-1, x_sd_0=1, # lsat settings
-             x_mu_1=0, x_sd_1=0.5, # more lsat settings
-             y_a_weight=0.4, y_x_weight=0.8, # gpa settings
-             normalize=True, # whether to rescale X and Y to [0,1]
-             observed=True, # whether to drop unobserved noise columns in output
-             save=False, # whether to save data to CSV
-             output_filepath=None): # filepath for saving to CSV
+    return y
+
+def gen_data(args):
+    
+            # sex_seed, race_seed, y_err_seed, x_err_seed, shared_err_seed, x_seed, # random seeds can be set seperately
+            #  x_err_input, y_err_input, # which nodes receive noise as input (X and/or Y)
+            #  M, # number of rows in dataset
+            #  shared_err_mu=0, shared_err_sd=1, # Shared error node settings
+            #  x_err_mu=0, x_err_sd=1, # X-noise settings
+            #  y_err_mu=0, y_err_sd=1, # Y-noise settings
+            #  x_shared_err_weight=0.5, # How much of X noise input comes from shared error node
+            #  y_shared_err_weight=0.5, # How much of Y noise input comes from shared error node
+             
+            #  race_prob=[0.5, 0.2, 0.3], # race setting
+            #  x_mu_0=-1, x_sd_0=1, # lsat settings
+            #  x_mu_1=0, x_sd_1=0.5, # more lsat settings
+            #  y_a_weight=0.4, y_x_weight=0.8, # gpa settings
+            #  normalize=True, # whether to rescale X and Y to [0,1]
+            #  observed=True, # whether to drop unobserved noise columns in output
+            #  save=False, # whether to save data to CSV
+            #  output_filepath=None): # filepath for saving to CSV
     '''
-    Function to generate dataset: A, Epsilon-X, Epsilon-Y, X, and Y
+    Function to generate dataset: A (race and sex), Epsilon-X, Epsilon-Y, Shared Epsilon, X, and Y
     Returns dataframe including rank of Y (allows ties)
     '''
 
-    assert (0<=x_shared_err_weight) & (x_shared_err_weight<=1), \
+    assert (0<=args.x_shared_err_weight) & (args.x_shared_err_weight<=1), \
             'x_shared_err_weight must be between 0 and 1 (inclusive)'
 
-    assert (0<=y_shared_err_weight) & (y_shared_err_weight<=1), \
+    assert (0<=args.y_shared_err_weight) & (args.y_shared_err_weight<=1), \
             'y_shared_err_weight must be between 0 and 1 (inclusive)'
     
-    # Generate race node (A)
-    a = gen_A(seed=a_seed, M=M, prob_priv=prob_priv)
+    # Generate race node (R)
+    r = gen_R(seed=args.race_seed, M=args.M, race_prob=args.race_prob)
+    s = gen_S(seed=args.sex_seed, M=args.M, race_prob=args.sex_prob)
+    a = gen_A(r=r, s=s)
 
-    if x_err_input or y_err_input:
+    if args.x_err_input or args.y_err_input:
         # Generate noise node to be parent of both X and Y
-        shared_err = gen_Err(seed=shared_err_seed, mu=shared_err_mu, sd=shared_err_sd, M=M)
+        shared_err = gen_Err(seed=args.shared_err_seed, mu=args.shared_err_mu, sd=args.shared_err_sd, M=args.M)
     
-    if y_err_input:
+    if args.y_err_input:
         # Generate noise node to be parent of Y (Epsilon-Y)
-        y_err = gen_Err(seed=y_err_seed, mu=y_err_mu, sd=y_err_sd, M=M)
+        y_err = gen_Err(seed=args.y_err_seed, mu=args.y_err_mu, sd=args.y_err_sd, M=args.M)
 
         # Create linear combination of shared_err and y_err
         # To pass to Y generation function
-        y_err_comb = y_shared_err_weight*shared_err + (1-y_shared_err_weight)*y_err
+        y_err_comb = args.y_shared_err_weight*shared_err + (1-args.y_shared_err_weight)*y_err
 
     else:
         y_err=None
         y_err_comb=None
         
-    if x_err_input:
+    if args.x_err_input:
         # Generate noise node to be parent of X (Epsilon-X)
-        x_err = gen_Err(seed=x_err_seed, mu=x_err_mu, sd=x_err_sd, M=M)
+        x_err = gen_Err(seed=args.x_err_seed, mu=args.x_err_mu, sd=args.x_err_sd, M=args.M)
 
         # Create linear combination of shared_err and x_err
         # To pass to Y generation function
-        x_err_comb = x_shared_err_weight*shared_err + (1-x_shared_err_weight)*x_err
+        x_err_comb = args.x_shared_err_weight*shared_err + (1-args.x_shared_err_weight)*x_err
     else:
         x_err=None
         x_err_comb=None
     
-    # Generate LSAT score node (X)
-    prescale_x = gen_X(seed=x_seed, a=a, err_input = x_err_input, err=x_err_comb,
-                        mu_0=x_mu_0, sd_0=x_sd_0,
-                        mu_1=x_mu_1, sd_1=x_sd_1)
+    # Generate X
+    prescale_x = gen_X(seed=args.x_seed, a=a, err_input = args.x_err_input, err=x_err_comb,
+                        mu_dict=args.x_mu_dict, sd_dict=args.x_sd_dict)
 
     # Rescale X to [0,1] if normalize is set to True
-    if normalize:
+    if args.normalize:
         x = rescale(prescale_x)
     else:
         x = prescale_x
     
-    # Generate first-year GPA node (Y)
-    prescale_y = gen_Y(a=a, x=x, err_input = y_err_input, err=y_err_comb,
-                        a_weight=y_a_weight, x_weight=y_x_weight)
+    # Generate Y
+    prescale_y = gen_Y(s=s, r=r, x=x, err_input = args.y_err_input, err=y_err_comb,
+                        s_boost_dict=args.y_s_boost_dict, r_boost_dict=args.y_r_boost_dict, 
+                        x_weight=args.y_x_weight)
     
     # Rescale Y to [0,1] if normalize is set to True
     if normalize:
@@ -187,44 +227,46 @@ def gen_data(a_seed, y_err_seed, x_err_seed, shared_err_seed, x_seed, # random s
         y = prescale_y
 
     # Compile columns into dataframe
-    data = pd.DataFrame({'a':a, 'shared_err': shared_err,
+    data = pd.DataFrame({'a':a, 'r':r, 's':s, 
+                         'shared_err': shared_err,
                          'x_err': x_err, 'prescale_x': prescale_x, 'x':x, 
                          'y_err': y_err, 'prescale_y': prescale_y, 'y':y})
 
     # Drop unobserved noise nodes if observed set to True
-    if observed:
+    if args.observed: 
         data.drop(columns=['shared_err', 'x_err', 'y_err', 'prescale_x', 'prescale_y'], inplace=True)
     
     # Save to CSV if save set to True
-    if save:
-       data.to_csv(output_filepath, index=False)
+    if args.save:
+       data.to_csv(args.output_filepath, index=False)
 
     return data
 
 
-def gen_data_and_sample_noise(n_runs, # number of re-rankings to sample
-                                x_err_input, y_err_input, # whether X and Y have noise parents
-                                M, # number of rows in dataset
-                                a_seed=0, # seed for race (all other seeds based on this)
-                                shared_err_mu=0, shared_err_sd=1, # Shared error node settings
-                                x_err_mu=0, x_err_sd=1, # X-noise settings
-                                y_err_mu=0, y_err_sd=1, # Y-noise settings
-                                x_shared_err_weight=0.5, # How much of X noise input comes from shared error node
-                                y_shared_err_weight=0.5, # How much of Y noise input comes from shared error node
-                                prob_priv=0.6, # race setting
-                                x_mu_0=-1, x_sd_0=1, # lsat settings
-                                x_mu_1=0, x_sd_1=0.5, # more lsat settings
-                                y_a_weight=0.4, y_x_weight=0.8, # gpa settings
-                                normalize=True, # whether to rescale X and Y to [0,1])
-                                observed=False, # whether to drop unobserved columns
-                                output_dir='default', # folder within out/synthetic_data/
-                                data_filename='unobserved_samp_1.csv', # name of original dataset file
-                                save_rankings=False, # whether to save rankings to CSV
-                                rankings_filename='unobserved_samp_1.pkl'): # name of rankings file
+def gen_data_and_sample_noise(args):
+    # n_runs, # number of re-rankings to sample
+    #                             x_err_input, y_err_input, # whether X and Y have noise parents
+    #                             M, # number of rows in dataset
+    #                             a_seed=0, # seed for race (all other seeds based on this)
+    #                             shared_err_mu=0, shared_err_sd=1, # Shared error node settings
+    #                             x_err_mu=0, x_err_sd=1, # X-noise settings
+    #                             y_err_mu=0, y_err_sd=1, # Y-noise settings
+    #                             x_shared_err_weight=0.5, # How much of X noise input comes from shared error node
+    #                             y_shared_err_weight=0.5, # How much of Y noise input comes from shared error node
+    #                             prob_priv=0.6, # race setting
+    #                             x_mu_0=-1, x_sd_0=1, # lsat settings
+    #                             x_mu_1=0, x_sd_1=0.5, # more lsat settings
+    #                             y_a_weight=0.4, y_x_weight=0.8, # gpa settings
+    #                             normalize=True, # whether to rescale X and Y to [0,1])
+    #                             observed=False, # whether to drop unobserved columns
+    #                             output_dir='default', # folder within out/synthetic_data/
+    #                             data_filename='unobserved_samp_1.csv', # name of original dataset file
+    #                             save_rankings=False, # whether to save rankings to CSV
+    #                             rankings_filename='unobserved_samp_1.pkl'): # name of rankings file
                                 
     '''
     Generate original dataset and save to CSV
-    Generate n_runs additional datasets using all same seeds except noise seed
+    Generate n_runs additional datasets using all same seeds except noise seeds
     Save original rank and additional n_runs ranks to pickle
 
     This implementation is favored for synthetic data experiments
@@ -232,34 +274,38 @@ def gen_data_and_sample_noise(n_runs, # number of re-rankings to sample
     '''
 
     # Set initial seeds
-    x_seed=a_seed+1
-    rank_seed=a_seed+2
-    shared_err_seed=n_runs+1+rank_seed
-    x_err_seed=(n_runs+1)*2+rank_seed # will not be used unless x_err_input==True
-    y_err_seed=(n_runs+1)*3+rank_seed # will not be used unless y_err_input==True
+    sex_seed=args.race_seed+1
+    x_seed=args.race_seed+2
+    rank_seed=args.race_seed+3
+    shared_err_seed=args.n_runs+1+rank_seed
+    x_err_seed=(args.n_runs+1)*2+rank_seed # will not be used unless x_err_input==True
+    y_err_seed=(args.n_runs+1)*3+rank_seed # will not be used unless y_err_input==True
 
     # Set output filepaths
     base_repo_dir = pathlib.Path(os.path.realpath(__file__)).parents[2]
-    base_output_dir = base_repo_dir / 'out' / 'synthetic_data' / output_dir
-    data_output_filepath = base_output_dir / 'data' / data_filename
-    rankings_output_filepath = base_output_dir / 'noise_rankings' / rankings_filename
+    base_output_dir = base_repo_dir / 'out' / 'synthetic_data' / args.output_dir
+    data_output_filepath = base_output_dir / 'data' / args.data_filename
+    rankings_output_filepath = base_output_dir / 'noise_rankings' / args.rankings_filename
 
     # Create partial data generation function
     # Include all params that will remain constant during noise sampling
-    gen_data_partial = partial(gen_data, M=M, 
-                                a_seed=a_seed, x_seed=x_seed, 
-                                x_err_input=x_err_input, y_err_input=y_err_input,
-                                shared_err_mu=shared_err_mu, shared_err_sd=shared_err_sd, 
-                                x_err_mu=x_err_mu, x_err_sd=x_err_sd, 
-                                y_err_mu=y_err_mu, y_err_sd=y_err_sd,
-                                x_shared_err_weight=x_shared_err_weight,
-                                y_shared_err_weight=y_shared_err_weight,
-                                prob_priv=prob_priv, 
-                                normalize=normalize, 
-                                observed=observed,
-                                x_mu_0=x_mu_0, x_sd_0=x_sd_0,
-                                x_mu_1=x_mu_1, x_sd_1=x_sd_1,
-                                y_a_weight=y_a_weight, y_x_weight=y_x_weight)
+    gen_data_partial = partial(gen_data, M=args.M, 
+                                race_seed=args.race_seed, sex_seed=sex_seed, x_seed=x_seed, 
+                                x_err_input=args.x_err_input, y_err_input=args.y_err_input,
+                                shared_err_mu=args.shared_err_mu, 
+                                shared_err_sd=args.shared_err_sd, 
+                                x_err_mu=args.x_err_mu, x_err_sd=args.x_err_sd, 
+                                y_err_mu=args.y_err_mu, y_err_sd=args.y_err_sd,
+                                x_shared_err_weight=args.x_shared_err_weight,
+                                y_shared_err_weight=args.y_shared_err_weight,
+                                race_prob=args.race_prob, sex_prob=args.sex_prob, 
+                                normalize=args.normalize, 
+                                observed=args.observed,
+                                x_mu_dict=args.x_mu_dict, 
+                                x_sd_dict=args.x_sd_dict, 
+                                y_s_boost_dict=args.y_s_boost_dict, 
+                                y_r_boost_dict=args.y_r_boost_dict,
+                                y_x_weight=args.y_x_weight)
 
     # Generate baseline dataset with initial seeds and save to CSV
     data = gen_data_partial(y_err_seed=y_err_seed, x_err_seed=x_err_seed,
@@ -290,46 +336,50 @@ def gen_data_and_sample_noise(n_runs, # number of re-rankings to sample
 
     # Save rankings to CSV if save_rankings set to True
     if save_rankings:
-       rankings.to_pickle(rankings_output_filepath, compression='gzip')
+       rankings.to_pickle(args.rankings_output_filepath, compression='gzip')
     
     return (data, rankings)
 
-
-def resample_noise_from_data(orig_data, # original dataset
-                            n_runs, # number of re-rankings to sample
-                            rank_seed, # initial random seed for rank (other noise seeds based on this)
-                            x_err_input, y_err_input, # whether X and Y have noise parents
-                            shared_err_mu=0, shared_err_sd=1, # Shared error node setting
-                            x_err_mu=0, x_err_sd=1, # X-Noise settings
-                            y_err_mu=0, y_err_sd=1, # Y-Noise settings
-                            x_shared_err_weight=0.5, # How much of X noise input comes from shared error node
-                            y_shared_err_weight=0.5, # How much of Y noise input comes from shared error node
-                            y_a_weight=0.4, y_x_weight=0.8, # GPA settings
-                            save=False, # whether to save rankings to CSV
-                            output_filepath=None): # filepath for saving to CSV
+    
+def resample_noise_from_data(args):
+                            # (orig_data, # original dataset
+                            # n_runs, # number of re-rankings to sample
+                            # rank_seed, # initial random seed for rank (other noise seeds based on this)
+                            # x_err_input, y_err_input, # whether X and Y have noise parents
+                            # shared_err_mu=0, shared_err_sd=1, # Shared error node setting
+                            # x_err_mu=0, x_err_sd=1, # X-Noise settings
+                            # y_err_mu=0, y_err_sd=1, # Y-Noise settings
+                            # x_shared_err_weight=0.5, # How much of X noise input comes from shared error node
+                            # y_shared_err_weight=0.5, # How much of Y noise input comes from shared error node
+                            # y_a_weight=0.4, y_x_weight=0.8, # GPA settings
+                            # save=False, # whether to save rankings to CSV
+                            # output_filepath=None): # filepath for saving to CSV
 
     '''
-    Takes in observed dataset with columns A, X, Y, and rank
+    Takes in observed dataset with columns A, R, S, X, Y, and rank
     Generate dataset and sample n_runs re-rankings derived from noise distribution
     Uses default settings from gen_data
     '''
 
     # Set initial seeds based on rank_seed
-    shared_err_seed=n_runs+1+rank_seed
-    x_err_seed=(n_runs+1)*2+rank_seed # will not be used unless x_err_input==True
-    y_err_seed=(n_runs+1)*3+rank_seed # will not be used unless y_err_input==True
+    shared_err_seed=args.n_runs+1+args.rank_seed
+    x_err_seed=(args.n_runs+1)*2+args.rank_seed # will not be used unless x_err_input==True
+    y_err_seed=(args.n_runs+1)*3+args.rank_seed # will not be used unless y_err_input==True
     
     # get number of rows from original dataset
-    M = len(orig_data)
+    M = len(args.orig_data)
 
     # Create dataframe to hold rank permutations
     rankings = pd.DataFrame()
 
     # Get original rank from original data
-    rankings['rank'] = calc_rank(rank_seed, orig_data['y'])
+    rankings['rank'] = calc_rank(args.rank_seed, args.orig_data['y'])
+
+    # Save original rank seed in separate variable
+    rank_seed = args.rank_seed
 
     # Generate additional rankings by re-sampling noise distribution
-    for i in range(0, n_runs):
+    for i in range(0, args.n_runs):
 
         # Increment noise seeds
         rank_seed +=1
@@ -337,38 +387,39 @@ def resample_noise_from_data(orig_data, # original dataset
         x_err_seed +=1
         y_err_seed +=1
 
-        if x_err_input or y_err_input:
+        if args.x_err_input or args.y_err_input:
             # Generate noise node to be parent of both X and Y
-            shared_err = gen_Err(seed=shared_err_seed, mu=shared_err_mu, sd=shared_err_sd, M=M)
+            shared_err = gen_Err(seed=shared_err_seed, mu=args.shared_err_mu, sd=args.shared_err_sd, M=args.M)
     
-        if x_err_input:
+        if args.x_err_input:
             # Generate new noise node to be parent of X (Epsilon-X)
-            x_err = gen_Err(seed=x_err_seed, mu=x_err_mu, sd=x_err_sd, M=M)
+            x_err = gen_Err(seed=x_err_seed, mu=args.x_err_mu, sd=args.x_err_sd, M=args.M)
 
             # Create linear combination of shared_err and x_err
             # To pass to Y generation function
-            x_err_comb = x_shared_err_weight*shared_err + (1-x_shared_err_weight)*x_err
+            x_err_comb = args.x_shared_err_weight*shared_err + (1-args.x_shared_err_weight)*x_err
 
             # Add new noise node to original x values
-            new_x = orig_data.x.values + x_err_comb
+            new_x = args.orig_data.x.values + x_err_comb
         else:
             # Keep original x values if DAG specifies X has no noise input
-            new_x = orig_data.x.values
+            new_x = args.orig_data.x.values
 
-        if y_err_input:
+        if args.y_err_input:
             # Generate noise node to be parent of Y (Epsilon-Y)
-            y_err = gen_Err(seed=y_err_seed, mu=y_err_mu, sd=y_err_sd, M=M)
+            y_err = gen_Err(seed=y_err_seed, mu=args.y_err_mu, sd=args.y_err_sd, M=args.M)
 
             # Create linear combination of shared_err and y_err
             # To pass to Y generation function
-            y_err_comb = y_shared_err_weight*shared_err + (1-y_shared_err_weight)*y_err
+            y_err_comb = args.y_shared_err_weight*shared_err + (1-args.y_shared_err_weight)*y_err
 
         else:
             y_err_comb = None
 
-        new_y = gen_Y(orig_data.a.values, new_x, 
-                      err_input=y_err_input, err=y_err_comb,
-                      a_weight=y_a_weight, x_weight=y_x_weight)
+        new_y = gen_Y(s=args.orig_data.s.values, r=args.orig_data.r.values, x = new_x, 
+                      err_input=args.y_err_input, err=y_err_comb,
+                      s_boost_dict=args.y_s_boost_dict, r_boost_dict=args.y_r_boost_dict,
+                      x_weight=args.y_x_weight)
 
         new_rank = calc_rank(rank_seed, new_y)
         
@@ -377,7 +428,7 @@ def resample_noise_from_data(orig_data, # original dataset
 
     # Save rankings to CSV if save set to True
     if save:
-       rankings.to_pickle(output_filepath, compression='gzip')
+       rankings.to_pickle(args.output_filepath, compression='gzip')
 
     return rankings
 
