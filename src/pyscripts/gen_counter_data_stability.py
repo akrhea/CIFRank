@@ -4,6 +4,21 @@ from utils.basic_utils import writeToCSV
 
 
 def get_counterfactual_data(args):
+
+    # Create list of groups to produce counterfactual data for
+    cf_groups = []
+    if args.cf_wm:
+        cf_groups.append('wm')
+    if args.cf_bm:
+        cf_groups.append('bm')
+    if args.cf_am:
+        cf_groups.append('am')
+    if args.cf_wf:
+        cf_groups.append('wf')
+    if args.cf_bf:
+        cf_groups.append('bf')
+    if args.cf_af:
+        cf_groups.append('af')
     
     # Define base repo directory
     try:
@@ -34,54 +49,47 @@ def get_counterfactual_data(args):
         
         # Intialize dataframe to hold counterfactual data
         counter_df = pd.DataFrame({'original_a':this_df['a'], 'original_x':this_df['x'], 'original_y':this_df['y']})
-
-        # Get list of groups in A (usually [0,1])
-        group_list = [x for x in this_df['a'].unique()]
         
         # Isolate parameters estimated from this sample
         x_params = x_params_df.loc[s]
         y_params = y_params_df.loc[s]
         
         # Calcuate X-residuals
-        x_residuals = this_df['x'] - ( x_params['a']*this_df['a'] + \
-                                      x_params['intercept'] ).values
+        x_residuals = this_df['x'] - this_df['a'].map(x_params)
 
         # Calcuate Y-residuals
-        y_residuals = this_df['y'] - ( y_params['a']*this_df['a'] + \
-                                      y_params['x']*this_df['x'] + \
-                                      y_params['intercept'] ).values
+        y_residuals = this_df['y'] - (this_df['a'].map(y_params) + \
+                                      y_params['x']*this_df['x'])
         
-        # Loop through groups in A present in this sample
-        for group in group_list:
+        # Loop through groups to produce CF data for
+        for group in cf_groups:
             
             # Get baseline X prediction for A <- group
-            counter_base_x = group*x_params['a'] + \
-                             x_params['intercept']
+            counter_base_x = x_params[group]
 
             # Estimate counterfactual X
             counter_x = counter_base_x + x_residuals
 
             # Get baseline Y prediction for A <- group for non-resolving X
-            counter_base_y_nonres = group*y_params['a'] + \
-                                    counter_x*y_params['x'] + \
-                                    y_params['intercept']
+            counter_base_y_nonres = counter_x*y_params['x'] + \
+                                    y_params[group]
+                                    
             
             # Estimate counterfactual Y for non-resolving X
             counter_y_nonres = counter_base_y_nonres + y_residuals
 
             # Get baseline Y prediction for A <- group for resolving X
-            counter_base_y_res = group*y_params['a'] + \
-                                 this_df['x']*y_params['x'] + \
-                                 y_params['intercept']
+            counter_base_y_res = y_params['x']*this_df['x'] + \
+                                 y_params[group]
             
             # Estimate counterfactual Y for resolving X
             counter_y_res = counter_base_y_res + y_residuals
             
             # Save counterfactual Y for non-resolving X
-            counter_df['cf_y_nonres_a{}'.format(group)] = counter_y_nonres
+            counter_df['cf_y_nonres_{}'.format(group)] = counter_y_nonres
             
             # Save counterfactual Y for resolving X
-            counter_df['cf_y_xres_a{}'.format(group)] = counter_y_res
+            counter_df['cf_y_xres_{}'.format(group)] = counter_y_res
 
         # Save counterfactual data for this sample to CSV
         counter_df.to_pickle(base_repo_dir / 'out/counterfactual_data/{}/counter_samp_{}.pkl'\
@@ -97,6 +105,17 @@ if __name__ == "__main__":
 
     # Optional argument
     parser.add_argument("--output_dir", type=str, default='default')
-
+    parser.add_argument("--cf_bm", action='store_true', 
+                        help='boolean flag, will calculate counterfactual data for A<-black male if set to True')
+    parser.add_argument("--cf_wm", action='store_true', 
+                        help='boolean flag, will calculate counterfactual data for A<-white male if set to True')
+    parser.add_argument("--cf_am", action='store_true', 
+                        help='boolean flag, will calculate counterfactual data for A<-asian male if set to True')
+    parser.add_argument("--cf_bf", action='store_true', 
+                        help='boolean flag, will calculate counterfactual data for A<-black female if set to True')
+    parser.add_argument("--cf_wf", action='store_true', 
+                        help='boolean flag, will calculate counterfactual data for A<-white female if set to True')
+    parser.add_argument("--cf_af", action='store_true', 
+                        help='boolean flag, will calculate counterfactual data for A<-asian female if set to True')
     args = parser.parse_args()
     get_counterfactual_data(args)
