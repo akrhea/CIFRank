@@ -429,8 +429,11 @@ def sampling_distribution(args):
         # Increment race seed (which will control all other seeds)
         r += (args.n_runs+1)*4+3
 
-        print('\nFinished generating sample {} of {}\n\n'.format(i+1, args.s_samples))
-
+        if args.check_seeds:
+            print('\n')
+        print('Finished generating sample {} of {}'.format(i+1, args.s_samples))
+        if args.check_seeds:
+            print('\n\n')
     return
 
 if __name__ == "__main__":

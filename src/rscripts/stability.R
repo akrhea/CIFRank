@@ -3,12 +3,9 @@
 # Script to be run from bash script located in CIFR_Stability repo root dir
 
 # Take in arguments from command line
-#args = commandArgs(trailingOnly=TRUE)
-#s_samples <- args[1]
-#output_dir <- args[2]
-
-s_samples <- 10
-output_dir <- 'default'
+args = commandArgs(trailingOnly=TRUE)
+s_samples <- args[1]
+output_dir <- args[2]
 
 # Use "here" library to get path to repo root directory
 library(here)
@@ -66,7 +63,6 @@ for (i in 1:s_samples) {
 # save dataframe of x parameters to csv
 write.csv(params.x, file = here('out','parameter_data',
                                output_dir,'params_x.csv'))
-
 
 # save dataframe of y parameters to csv
 write.csv(params.y, file = here('out','parameter_data',
