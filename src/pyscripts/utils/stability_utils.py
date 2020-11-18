@@ -1,5 +1,24 @@
 import numpy as np
 
+def get_shared_weight(corr):
+    '''
+    Taken in correlation between error terms
+    Return weight of shared error term
+
+    Based on quadratic formula
+    '''
+
+    assert (corr>=0) & (corr<=1), 'err_corr must be between 0 and 1 (inclusive)'
+    
+    if corr==0.5:
+        w = 0.5
+    else:
+        w = (2*corr-2*np.sqrt(corr-corr**2))/(4*corr-2)
+        
+    assert (w>=0) & (w<=1), 'Error: weight not between 0 and 1: {}'.format(w)
+    
+    return abs(w)
+
 def rescale(arr, new_min=0, new_max=1):
     old_min = np.min(arr)
     old_max = np.max(arr)

@@ -6,6 +6,31 @@ from sklearn.model_selection import StratifiedShuffleSplit
 from os import listdir
 from os.path import isfile, join
 
+from pprint import pprint
+from inspect import getmembers
+from types import FunctionType
+
+def attributes(obj):
+    '''
+    Get all attributes of object, excluding those that begin with '_'
+    Copied from Stack Overflow user Aaron Hall
+    https://stackoverflow.com/questions/192109/is-there-a-built-in-function-to-print-all-the-current-properties-and-values-of-a
+    '''
+    disallowed_names = {
+      name for name, value in getmembers(type(obj)) 
+        if isinstance(value, FunctionType)}
+    return {
+      name: getattr(obj, name) for name in dir(obj) 
+        if name[0] != '_' and name not in disallowed_names and hasattr(obj, name)}
+
+def print_attributes(obj):
+    '''
+    Print all attributes of object, excluding those that begin with '_'
+    Copied from Stack Overflow user Aaron Hall
+    https://stackoverflow.com/questions/192109/is-there-a-built-in-function-to-print-all-the-current-properties-and-values-of-a
+    '''
+    pprint(attributes(obj))
+
 def get_files_with_name(filepath, name_flag):
     return [f for f in listdir(filepath) if isfile(join(filepath, f)) and name_flag in f]
 
