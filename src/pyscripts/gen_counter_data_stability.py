@@ -6,7 +6,8 @@ from utils.basic_utils import writeToCSV
 def get_counterfactual_data(args):
 
     # Create list of groups to produce counterfactual data for
-    cf_groups = []
+    # BF included as default
+    cf_groups = ['bf']
     if args.cf_wm:
         cf_groups.append('wm')
     if args.cf_bm:
@@ -15,10 +16,13 @@ def get_counterfactual_data(args):
         cf_groups.append('am')
     if args.cf_wf:
         cf_groups.append('wf')
-    if args.cf_bf:
-        cf_groups.append('bf')
+    if args.no_cf_bf:
+        cf_groups.remove('bf')
     if args.cf_af:
         cf_groups.append('af')
+
+    assert len(cf_groups)>0, \
+            'Must select at least 1 group to calculate counterfactual intervention for'
     
     # Define base repo directory
     try:
@@ -111,8 +115,8 @@ if __name__ == "__main__":
                         help='boolean flag, will calculate counterfactual data for A<-white male if set to True')
     parser.add_argument("--cf_am", action='store_true', 
                         help='boolean flag, will calculate counterfactual data for A<-asian male if set to True')
-    parser.add_argument("--cf_bf", action='store_true', 
-                        help='boolean flag, will calculate counterfactual data for A<-black female if set to True')
+    parser.add_argument("--no_cf_bf", action='store_true', 
+                        help='boolean flag, will NOT calculate counterfactual data for A<-black female if set to True')
     parser.add_argument("--cf_wf", action='store_true', 
                         help='boolean flag, will calculate counterfactual data for A<-white female if set to True')
     parser.add_argument("--cf_af", action='store_true', 
