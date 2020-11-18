@@ -6,6 +6,8 @@ import argparse, os, pathlib
 from functools import partial
 from utils.stability_utils import calc_rank
 from utils.eval_utils import calculate_kendall_tau_distance_quick,\
+                             subgroup_kt,\
+                             change_in_cond_exp_rank,\
                              num_retained_at_top_k,\
                              change_in_percent_at_top_k,\
                              percent_change_in_percent_at_top_k,\
@@ -14,6 +16,14 @@ from utils.eval_utils import calculate_kendall_tau_distance_quick,\
                              prob_lower_group,\
                              prob_lower_group_ratio
                                 
+#kt
+#subgroup kt
+#change in cond exp rank
+
+#change in rKL @ top K?
+#change in DP @ top K ?
+#change in IGF Ratio
+
 
 def calc_expected_distances(args):
 
@@ -22,18 +32,21 @@ def calc_expected_distances(args):
     '''
 
     # Highest seed not yet used in data gen
-    seed = args.s_samples*((args.n_runs+1)*3+2)
+    seed = args.s_samples*((args.n_runs+1)*4+3)+args.initial_seed
 
     # Initialize arrays to hold distances
     noise_dists = np.zeros([len(args.metrics), args.s_samples, args.n_runs])
-    counter_dists_xres0 = np.zeros([args.s_samples, len(args.metrics)])
-    counter_dists_nonres0 = np.zeros([args.s_samples, len(args.metrics)])
+    counter_dists_xres = np.zeros([args.s_samples, len(args.metrics)])
+    counter_dists_nonres = np.zeros([args.s_samples, len(args.metrics)])
 
-    if args.all_interventions:
-        counter_dists_xres1 = np.zeros([args.s_samples, len(args.metrics)])
-        counter_dists_nonres1 = np.zeros([args.s_samples, len(args.metrics)])
-        dists_xres_a0_a1 = np.zeros([args.s_samples, len(args.metrics)])
-        dists_nonres_a0_a1 = np.zeros([args.s_samples, len(args.metrics)])
+    '''
+    FIX IF NEED TO LOOK AT MORE THAN 1 INTERVENTION
+    '''
+    # if args.all_interventions:
+        # counter_dists_xres1 = np.zeros([args.s_samples, len(args.metrics)])
+        # counter_dists_nonres1 = np.zeros([args.s_samples, len(args.metrics)])
+        # dists_xres_a0_a1 = np.zeros([args.s_samples, len(args.metrics)])
+        # dists_nonres_a0_a1 = np.zeros([args.s_samples, len(args.metrics)])
 
     # Loop through s_samples
     for s in range(1, args.s_samples+1):
@@ -45,9 +58,10 @@ def calc_expected_distances(args):
         
         # Get list of counterfactual Y columns
         if args.all_interventions:
-            counter_y_cols = [x for x in counter.columns if 'cf_y_' in x]
+            counter_y_cols = [x for x in counter.columns if 'cf_y_' in x] # fix if needed
         else:
-            counter_y_cols = [x for x in counter.columns if (('cf_y_' in x)&(x[-1]=='0'))]
+            # depends on 2-letter group (e.g. "am" or "bf")
+            counter_y_cols = [x for x in counter.columns if (('cf_y_' in x)&(x[-2:]==args.which_group))]
         
         # Calculate ranks for each counterfactual Y
         for y in counter_y_cols:
@@ -63,28 +77,30 @@ def calc_expected_distances(args):
         # Get original rank
         orig_rank = noise['rank']
 
-        # Read original dataset
-        data = pd.read_csv(args.base_repo_dir /'out'/\
-                                'synthetic_data'/args.output_dir/\
-                                'data'/'samp_{}.csv'.format(s))
-
         # Create list of partial functions for metrics
         metrics_dict = {'kendalls_tau': partial(calculate_kendall_tau_distance_quick), 
+                        'subgroup_kt': partial(subgroup_kt, groups=counter['original_a'], 
+                                                which_group=args.which_group),
+                        'change_in_cond_exp_rank': partial(change_in_cond_exp_rank, 
+                                                    groups=counter['original_a'], 
+                                                    which_group=args.which_group),
                         'num_retained_at_top_k': partial(num_retained_at_top_k, k=args.k), 
                         'change_in_percent_at_top_k': \
                             partial(change_in_percent_at_top_k, 
-                                    k=args.k, groups=data['a'], which_group=0),
+                                    k=args.k, groups=counter['original_a'], which_group=args.which_group),
                         'percent_change_in_percent_at_top_k': \
                             partial(percent_change_in_percent_at_top_k, 
-                                    k=args.k, groups=data['a'], which_group=0),
+                                    k=args.k, groups=counter['original_a'], which_group=args.which_group),
                         'ratio_of_percent_at_top_k': \
                             partial(ratio_of_percent_at_top_k, 
-                                    k=args.k, groups=data['a'], which_group=0),
+                                    k=args.k, groups=counter['original_a'], which_group=args.which_group),
                         'prob_lower': partial(prob_lower),
                         'prob_lower_group': partial(prob_lower_group, 
-                                            groups=data['a'], which_group=0),
-                        'prob_lower_group_ratio': partial(prob_lower_group_ratio, 
-                                                      groups=data['a'], groupa=0, groupb=1) }
+                                            groups=counter['original_a'], which_group=args.which_group),
+                        'prob_lower_group_ratio': partial(prob_lower_group_ratio,  
+                                                      groups=counter['original_a'], 
+                                                      groupa=args.which_group, groupb='wm') # fix if needed
+                        }
         metrics = [metrics_dict[m] for m in args.metrics]
         
         # Get distances between original rank and each rank from noise distribution
@@ -94,51 +110,46 @@ def calc_expected_distances(args):
                 noise_dists[m][s-1][n-1] = metric(rank1=orig_rank, rank2=noise['rank_{}'.format(n)])
 
         for m, metric in enumerate(metrics):
-            try:
-                # Get distance between original rank and counterfactual Y with resolving X
-                counter_dists_nonres0[s-1][m] = metric(rank1=orig_rank, rank2=counter['rank_nonres_a0'])
-                
-                # Get distance between original rank and counterfactual Y with non-resolving X
-                counter_dists_xres0[s-1][m] = metric(rank1=orig_rank, rank2=counter['rank_xres_a0'])
-                
-            # Catch exception for A=0 not present in original dataset
-            # A<-0 intervention will not have been performed
-            except:
-                counter_dists_nonres0[s-1][m] = np.nan
-                counter_dists_xres0[s-1][m] = np.nan
+            # Get distance between original rank and counterfactual Y with resolving X
+            counter_dists_nonres[s-1][m] = metric(rank1=orig_rank, rank2=counter['rank_nonres_'+args.which_group])
+            
+            # Get distance between original rank and counterfactual Y with non-resolving X
+            counter_dists_xres[s-1][m] = metric(rank1=orig_rank, rank2=counter['rank_xres_'+args.which_group])
 
-            if args.all_interventions:
-                try:
-                    # Get distance between original rank and counterfactual Y with resolving X
-                    counter_dists_nonres1[s-1][m] = metric(rank1=orig_rank, rank2=counter['rank_nonres_a1'])
+            # FIX IF NEEDED
+            # if args.all_interventions:  
+                # try:
+                #     # Get distance between original rank and counterfactual Y with resolving X
+                #     counter_dists_nonres1[s-1][m] = metric(rank1=orig_rank, rank2=counter['rank_nonres_a1'])
                     
-                    # Get distance between original rank and counterfactual Y with non-resolving X
-                    counter_dists_xres1[s-1][m] = metric(rank1=orig_rank, rank2=counter['rank_xres_a1'])
+                #     # Get distance between original rank and counterfactual Y with non-resolving X
+                #     counter_dists_xres1[s-1][m] = metric(rank1=orig_rank, rank2=counter['rank_xres_a1'])
                 
-                # Catch exception for A=1 not present in original dataset
-                # A<-1 intervention will not have been performed
-                except:
+                # # Catch exception for A=1 not present in original dataset
+                # # A<-1 intervention will not have been performed
+                # except:
 
-                    counter_dists_nonres1[s-1][m] = np.nan
-                    counter_dists_xres1[s-1][m] = np.nan
+                #     counter_dists_nonres1[s-1][m] = np.nan
+                #     counter_dists_xres1[s-1][m] = np.nan
 
-        if args.all_interventions:
-            for m, metric in enumerate(metrics):
-                # Get distances between counterfactual ranks for intervention A<-0 and for intervention A<-1
-                try:
-                    # Distance between ranks resulting from each intervention for non-resolving X
-                    dists_nonres_a0_a1[s-1][m] = metric(rank1=counter['rank_nonres_a0'], 
-                                                        rank2=counter['rank_nonres_a1'])
+        # FIX IF NEEDED
+        # if args.all_interventions: 
+            # for m, metric in enumerate(metrics):
+            #     # Get distances between counterfactual ranks for intervention A<-0 and for intervention A<-1
+            #     try:
+            #         # Distance between ranks resulting from each intervention for non-resolving X
+            #         dists_nonres_a0_a1[s-1][m] = metric(rank1=counter['rank_nonres_a0'], 
+            #                                             rank2=counter['rank_nonres_a1'])
                     
-                    # Distance between ranks resulting from each intervention for resolving X
-                    dists_xres_a0_a1[s-1][m] = metric(rank1=counter['rank_xres_a0'], 
-                                                      rank2=counter['rank_xres_a1'])
+            #         # Distance between ranks resulting from each intervention for resolving X
+            #         dists_xres_a0_a1[s-1][m] = metric(rank1=counter['rank_xres_a0'], 
+            #                                           rank2=counter['rank_xres_a1'])
                     
-                # Catch exception for only one value of A present in original dataset
-                # Only one intervention will have been performed
-                except:
-                    dists_nonres_a0_a1[s-1][m] = np.nan
-                    dists_xres_a0_a1[s-1][m] = np.nan
+            #     # Catch exception for only one value of A present in original dataset
+            #     # Only one intervention will have been performed
+            #     except:
+            #         dists_nonres_a0_a1[s-1][m] = np.nan
+            #         dists_xres_a0_a1[s-1][m] = np.nan
 
     # Get expected distances between original rank and rank from re-sampled noise
     # Expectations taken over n_runs of noise distribution
@@ -154,48 +165,51 @@ def calc_expected_distances(args):
     exp_exp_noise_dist = np.mean(exp_noise_dist, axis=1)
 
     # Get expected distance between original rank and counterfactual Y with non-resolving X
-    # For intervention A<-0
+    # For intervention A<-which_group
     # Expectation taken over s_samples
-    # E[ distance(original rank, counterfactual rank with non-resolving X for A<-0) ]
+    # E[ distance(original rank, counterfactual rank with non-resolving X for A<-which_group) ]
     # 1 value per metric for entire experiment trial
-    exp_cf_dist_nonres_a0 = np.nanmean(counter_dists_nonres0, axis=0)
+    exp_cf_dist_nonres = np.nanmean(counter_dists_nonres, axis=0)
 
-    if args.all_interventions:
+    # FIX IF NEEDED
+    # if args.all_interventions: 
         # Get expected distance between original rank and counterfactual Y with non-resolving X
         # For intervention A<-1
         # Expectation taken over s_samples
         # E[ distance(original rank, counterfactual rank with non-resolving X for A<-1) ]
         # 1 value per metric for entire experiment trial
-        exp_cf_dist_nonres_a1 = np.nanmean(counter_dists_nonres1, axis=0)
+    #    exp_cf_dist_nonres_a1 = np.nanmean(counter_dists_nonres, axis=0)
 
     # Get expected distance between original rank and counterfactual Y with resolving X
-    # For intervention A<-0
+    # For intervention For intervention A<-which_group
     # Expectation taken over s_samples
-    # E[ distance(original rank, counterfactual rank with resolving X for A<-0) ]
+    # E[ distance(original rank, counterfactual rank with resolving X for A<-which_group) ]
     # 1 value per metric for entire experiment trial
-    exp_cf_dist_xres_a0 = np.nanmean(counter_dists_xres0, axis=0)
+    exp_cf_dist_xres = np.nanmean(counter_dists_xres, axis=0)
 
-    if args.all_interventions:
+    # FIX IF NEEDED
+    # if args.all_interventions: 
         # Get expected distance between original rank and counterfactual Y with resolving X
         # For intervention A<-1
         # Expectation taken over s_samples
         # E[ distance(original rank, counterfactual rank with resolving X for A<-1) ]
         # 1 value per metric for entire experiment trial
-        exp_cf_dist_xres_a1 = np.nanmean(counter_dists_xres1, axis=0)
+     #   exp_cf_dist_xres_a1 = np.nanmean(counter_dists_xres1, axis=0)
 
     # Bundle expected distances into list of dictionaries
     exp_dicts = []
     for m, metric in enumerate(metrics):
-        if args.all_interventions:
-            exp_dict = {'exp_exp_noise':exp_exp_noise_dist[m],
-                        'exp_nonres0': exp_cf_dist_nonres_a0[m],
-                        'exp_nonres1': exp_cf_dist_nonres_a1[m],
-                        'exp_xres0': exp_cf_dist_xres_a0[m],
-                        'exp_xres1': exp_cf_dist_xres_a1[m]}
-        else:
-            exp_dict = {'exp_exp_noise':exp_exp_noise_dist[m],
-                        'exp_nonres0': exp_cf_dist_nonres_a0[m],
-                        'exp_xres0': exp_cf_dist_xres_a0[m]}
+        # if args.all_interventions: #
+        #  FIX IF NEEDED
+            # exp_dict = {'exp_exp_noise':exp_exp_noise_dist[m],
+            #             'exp_nonres0': exp_cf_dist_nonres_a0[m],
+            #             'exp_nonres1': exp_cf_dist_nonres_a1[m],
+            #             'exp_xres0': exp_cf_dist_xres_a0[m],
+            #             'exp_xres1': exp_cf_dist_xres_a1[m]}
+        # else:
+        exp_dict = {'exp_exp_noise':exp_exp_noise_dist[m],
+                    'exp_nonres': exp_cf_dist_nonres[m],
+                    'exp_xres': exp_cf_dist_xres[m]}
         exp_dicts.append(exp_dict)
 
     # Bundle expected noise distances into 1d list of dataframes
@@ -207,20 +221,21 @@ def calc_expected_distances(args):
     # Bundle counterfactual distances into 1d list of dataframes
     cf_dist_dfs = []
     for m, metric in enumerate(metrics):
-        if args.all_interventions:
-            cf_dist_df = pd.concat([ pd.DataFrame(exp_noise_dist[m], columns=['exp_orig_noise']),
-                                    pd.DataFrame(counter_dists_nonres0[:,m], columns=['orig_nonres0']), 
-                                    pd.DataFrame(counter_dists_nonres1[:,m], columns=['orig_nonres1']), 
-                                    pd.DataFrame(counter_dists_xres0[:,m], columns=['orig_xres0']), 
-                                    pd.DataFrame(counter_dists_xres1[:,m], columns=['orig_xres1']), 
-                                    pd.DataFrame(dists_nonres_a0_a1[:,m], columns=['nonres0_nonres1']),
-                                    pd.DataFrame(dists_xres_a0_a1[:,m], columns=['xres0_xres1']),
-                                ], axis=1)
-        else:
-            cf_dist_df = pd.concat([ pd.DataFrame(exp_noise_dist[m], columns=['exp_orig_noise']),
-                                    pd.DataFrame(counter_dists_nonres0[:,m], columns=['orig_nonres0']), 
-                                    pd.DataFrame(counter_dists_xres0[:,m], columns=['orig_xres0']),
-                                ], axis=1)
+        # FIX IF NEEDED
+        # if args.all_interventions:
+        #     cf_dist_df = pd.concat([ pd.DataFrame(exp_noise_dist[m], columns=['exp_orig_noise']),
+        #                             pd.DataFrame(counter_dists_nonres0[:,m], columns=['orig_nonres0']), 
+        #                             pd.DataFrame(counter_dists_nonres1[:,m], columns=['orig_nonres1']), 
+        #                             pd.DataFrame(counter_dists_xres0[:,m], columns=['orig_xres0']), 
+        #                             pd.DataFrame(counter_dists_xres1[:,m], columns=['orig_xres1']), 
+        #                             pd.DataFrame(dists_nonres_a0_a1[:,m], columns=['nonres0_nonres1']),
+        #                             pd.DataFrame(dists_xres_a0_a1[:,m], columns=['xres0_xres1']),
+        #                         ], axis=1)
+        #else:
+        cf_dist_df = pd.concat([ pd.DataFrame(exp_noise_dist[m], columns=['exp_orig_noise']),
+                                pd.DataFrame(counter_dists_nonres[:,m], columns=['orig_nonres_'+args.which_group]), 
+                                pd.DataFrame(counter_dists_xres[:,m], columns=['orig_xres_'+args.which_group]),
+                            ], axis=1)
         cf_dist_dfs.append(cf_dist_df)
 
     return (exp_noise_dfs, cf_dist_dfs, exp_dicts)
@@ -236,6 +251,7 @@ if __name__ == "__main__":
 
     # Optional arguments
     parser.add_argument("--output_dir", type=str, default='default')
+    parser.add_argument("--initial_seed", type=int, default=0, help='Initial seed for race sample passed to gen_stability_data.py')
 
     parser.add_argument("--all_interventions", action='store_true', 
                         help='Boolean flag indicating whether all intervention counterfactuals will be evaluated.\
@@ -246,6 +262,16 @@ if __name__ == "__main__":
                                   all distance metrics.\
                                   If not set, only those Kendall\'s Tau and \
                                   any others specifically set will be evaluated.')
+
+    parser.add_argument("--subgroup_kt", action='store_true', 
+                        help='Boolean flag indicating whether to additionally evaluate\
+                              the distance metric subgroup_kt.\
+                              If not set, subgroup_kt will not be evaluated.')
+
+    parser.add_argument("--change_in_cond_exp_rank", action='store_true', 
+                        help='Boolean flag indicating whether to additionally evaluate\
+                              the distance metric change_in_cond_exp_rank.\
+                              If not set, change_in_cond_exp_rank will not be evaluated.')
 
     parser.add_argument("--num_retained_at_top_k", action='store_true', 
                         help='Boolean flag indicating whether to additionally evaluate\
@@ -286,8 +312,13 @@ if __name__ == "__main__":
                         help='Boolean flag indicating whether to exclude Kendall\'s Tau from evaluation.\
                             If not set, Kendall\'s Tau will be evaluated.')
 
+    parser.add_argument("--which_group", type=str, default='bf',
+                        help='which group to use for group-specific metrics')
+    
     parser.add_argument("--k", type=int, default=0,
                         help='Integer to use for "top k" evaluations.')
+
+
             
 
     # Parse arguments
@@ -300,6 +331,10 @@ if __name__ == "__main__":
     args.metrics = []
     if not args.no_kendalls_tau:
         args.metrics.append('kendalls_tau')
+    if args.subgroup_kt| args.all_metrics:
+        args.metrics.append('subgroup_kt')
+    if args.change_in_cond_exp_rank| args.all_metrics:
+        args.metrics.append('change_in_cond_exp_rank')
     if args.num_retained_at_top_k | args.all_metrics:
         args.metrics.append('num_retained_at_top_k')
     if args.change_in_percent_at_top_k | args.all_metrics:

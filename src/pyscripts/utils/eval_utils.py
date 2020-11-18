@@ -1,7 +1,51 @@
+#!/usr/bin/env python3
+
 import numpy as np
 import pandas as pd
 import math
 from scipy.stats import kendalltau
+from utils.stability_utils import subgroup_rank
+
+def subgroup_kt(rank1, rank2, groups, which_group):
+    rank1_sub = subgroup_rank(rank1, groups, which_group)
+    if len(rank1_sub)<2:
+        return 1
+    rank2_sub = subgroup_rank(rank2, groups, which_group)
+    return calculate_kendall_tau_distance_quick(rank1_sub, rank2_sub)
+
+def cond_exp_rank(rank, groups, which_group, normalize=False):
+    '''
+    Expected rank, given membership in which_group
+    '''
+    group_inds = np.argwhere(groups==which_group).flatten()
+    cond_exp_rank = rank[group_inds].mean()
+    if normalize:
+        return cond_exp_rank/len(rank)
+    else:
+        return cond_exp_rank
+
+def change_in_cond_exp_rank(rank1, rank2, groups, which_group, normalize=False):
+    '''
+    Expected change in rank, given membership in which_group
+    '''
+    exp1 = cond_exp_rank(rank1, groups, which_group, normalize)
+    exp2 = cond_exp_rank(rank2, groups, which_group, normalize)
+    return exp2-exp1
+
+def dp_ratio_top_k_vs_overall(rank, groups, which_group, k=None):
+    '''
+    Demographic parity measure
+
+    Ratio: 
+        percent of top-k belonging to which_group 
+        / percent belonging to which_group overall
+    '''
+    percent_k = percent_at_top_k(rank, groups, which_group, k)
+    
+    group_inds = np.argwhere(groups==which_group).flatten()
+    percent_overall = 100*len(group_inds)/len(rank)
+
+    return percent_k/percent_overall
 
 def prob_lower(rank1, rank2):
     '''

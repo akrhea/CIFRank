@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import numpy as np
 
 def get_shared_weight(corr):
@@ -88,3 +90,8 @@ def calc_rank(seed, y):
     
     # return rank vector
     return R
+
+def subgroup_rank(rank, groups, which_group):
+    group_inds = np.argwhere(groups==which_group).flatten()
+    group_ranks = np.array(rank[group_inds])
+    return calc_rank(seed=0, y=-1*group_ranks) # will not use seed because no ties
