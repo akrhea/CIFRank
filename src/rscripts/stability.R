@@ -39,29 +39,26 @@ for (i in 1:s_samples) {
                           paste('samp_', i, '.csv', sep='')))
 
    # estimate model for x with lin reg
-   model.x <- lm(x ~ a, data = data_i)
+   model.x <- lm(x ~ a-1, data = data_i)
    coefs.x <- data.frame(coef(summary(model.x)))
   
    # estimate model for x with lin reg
-   model.y <- lm(y ~ x+a, data = data_i)
+   model.y <- lm(y ~ x+a-1, data = data_i)
    coefs.y <- data.frame(coef(summary(model.y)))
    
    # Get estimated coefficients for each group
    for (group in groups){
      params.x[i,group]<- ifelse(
                            !is.na(coefs.x[paste('a',group,sep=''), 'Estimate']),
-                           coefs.x[paste('a',group,sep=''), 'Estimate'],
-                           coefs.x['(Intercept)', 'Estimate'])
-     
+                           coefs.x[paste('a',group,sep=''), 'Estimate'], 0)
+
      params.y[i,group]<- ifelse(
                            !is.na(coefs.y[paste('a',group,sep=''), 'Estimate']),
-                           coefs.y[paste('a',group,sep=''), 'Estimate'],
-                           coefs.y['(Intercept)', 'Estimate'])
-     
+                           coefs.y[paste('a',group,sep=''), 'Estimate'], 0)
    }
    
    # Get estimated coefficient for X
-   params.x[i,'x'] <- coefs.y['x', 'Estimate']
+   params.y[i,'x'] <- coefs.y['x', 'Estimate']
 
   print(paste("Done causal model estimation of synthetic data trial ", i))
 }
