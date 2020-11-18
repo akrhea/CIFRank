@@ -9,15 +9,11 @@
 EXPER_NAME="corr_errors"
 S_SAMPLES=200
 N_RUNS=100
-# S_SAMPLES=20
-# N_RUNS=10
-
 M_ROWS=50
 
 ERR_SDS=(0.0 0.5 1.0 1.5 2.0)
 
 SHARED_WGTS=(0.0 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0)
-#SHARED_WGTS=(0.0 0.5 1.0)
 
 # Array of metrics names to test
 METRICS=("kendalls_tau" \
