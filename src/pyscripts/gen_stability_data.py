@@ -146,23 +146,6 @@ def gen_Y(s, r, x, err_input, err=None,
 
 def gen_data(args):
     
-            # sex_seed, race_seed, y_err_seed, x_err_seed, shared_err_seed, x_seed, # random seeds can be set seperately
-            #  x_err_input, y_err_input, # which nodes receive noise as input (X and/or Y)
-            #  m_rows, # number of rows in dataset
-            #  shared_err_mu=0, shared_err_sd=1, # Shared error node settings
-            #  x_err_mu=0, x_err_sd=1, # X-noise settings
-            #  y_err_mu=0, y_err_sd=1, # Y-noise settings
-            #  x_shared_err_weight=0.5, # How much of X noise input comes from shared error node
-            #  y_shared_err_weight=0.5, # How much of Y noise input comes from shared error node
-             
-            #  race_prob=[0.5, 0.2, 0.3], # race setting
-            #  x_mu_0=-1, x_sd_0=1, # lsat settings
-            #  x_mu_1=0, x_sd_1=0.5, # more lsat settings
-            #  y_a_weight=0.4, y_x_weight=0.8, # gpa settings
-            #  normalize=True, # whether to rescale X and Y to [0,1]
-            #  observed=True, # whether to drop unobserved noise columns in output
-            #  save=False, # whether to save data to CSV
-            #  output_filepath=None): # filepath for saving to CSV
     '''
     Function to generate dataset: A (race and sex), Epsilon-X, Epsilon-Y, Shared Epsilon, X, and Y
     Returns dataframe including rank of Y (allows ties)

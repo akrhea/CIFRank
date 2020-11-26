@@ -13,9 +13,10 @@ def subgroup_kt(rank1, rank2, groups, which_group):
     rank2_sub = subgroup_rank(rank2, groups, which_group)
     return calculate_kendall_tau_distance_quick(rank1_sub, rank2_sub)
 
-def cond_exp_rank(rank, groups, which_group, normalize=False):
+def cond_exp_rank(rank, groups, which_group, normalize=True):
     '''
     Expected rank, given membership in which_group
+    If normalized, divide by number of rows --> (0,1]
     '''
     group_inds = np.argwhere(groups==which_group).flatten()
     cond_exp_rank = rank[group_inds].mean()
@@ -24,28 +25,12 @@ def cond_exp_rank(rank, groups, which_group, normalize=False):
     else:
         return cond_exp_rank
 
-def change_in_cond_exp_rank(rank1, rank2, groups, which_group, normalize=False):
+def change_in_cond_exp_rank(exp1, rank2, groups, which_group, normalize=True):
     '''
     Expected change in rank, given membership in which_group
     '''
-    exp1 = cond_exp_rank(rank1, groups, which_group, normalize)
     exp2 = cond_exp_rank(rank2, groups, which_group, normalize)
     return exp2-exp1
-
-def dp_ratio_top_k_vs_overall(rank, groups, which_group, k=None):
-    '''
-    Demographic parity measure
-
-    Ratio: 
-        percent of top-k belonging to which_group 
-        / percent belonging to which_group overall
-    '''
-    percent_k = percent_at_top_k(rank, groups, which_group, k)
-    
-    group_inds = np.argwhere(groups==which_group).flatten()
-    percent_overall = 100*len(group_inds)/len(rank)
-
-    return percent_k/percent_overall
 
 def prob_lower(rank1, rank2):
     '''
@@ -88,7 +73,7 @@ def prob_lower_group_ratio(rank1, rank2, groups, groupa, groupb):
     return(proba/probb)
 
 
-def percent_at_top_k(rank, group, which_group, k=None):
+def percent_at_top_k(rank, groups, which_group, k=None):
     '''
     Return percent of top k individuals which
         belong to which_group.
@@ -99,7 +84,7 @@ def percent_at_top_k(rank, group, which_group, k=None):
         k=int(0.2*len(rank))
         
     sorted_ind = np.argsort(rank)
-    topk = group[sorted_ind][:k]
+    topk = groups[sorted_ind][:k]
     return 100*sum(topk==which_group)/k
 
 
@@ -351,26 +336,19 @@ def KL_divergence(p_list, q_list, log_base=2):
     return res
 
 
-def compute_rKL(_top_df, _orig_df, sort_col=None, group_col="GR", cut_off=10, log_base=2):
-    if sort_col: # random permutation within ties in _top_df
-        print("!!!Ties in the ranking!!!")
-        rand_top_df = pd.DataFrame(columns=list(_top_df.columns))
-        for yi in _top_df[sort_col].unique():
-            yi_df = _top_df[_top_df[sort_col]==yi].copy().sample(frac=1).reset_index(drop=True)
-            rand_top_df = pd.concat([rand_top_df, yi_df])
-    else:
-        rand_top_df = _top_df.copy()
-    base_quotas = dict(_orig_df[group_col].value_counts(normalize=True))
+def compute_rKL(rank, groups, cut_off=10, log_base=2):
+    rand_top_df = pd.DataFrame({'a':groups, 'rank':rank}).sort_values(by='rank')
+    base_quotas = dict(groups.value_counts(normalize=True))
     res = 0
     for ci in range(cut_off, rand_top_df.shape[0], cut_off):
-        ci_quotas = dict(rand_top_df.head(ci)[group_col].value_counts(normalize=True))
+        ci_quotas = dict(rand_top_df.head(ci)['a'].value_counts(normalize=True))
         ci_p_list = []
         ci_q_list = []
         for gi, gi_v in base_quotas.items():
             if gi in ci_quotas:
                 ci_p_list.append(ci_quotas[gi])
             else:
-                ci_p_list.append(0.001) # to compute the KL-diverfence for value 0
+                ci_p_list.append(0.001) # to compute the KL-divergence for value 0
             if gi_v == 0:
                 ci_q_list.append(0.001)
             else:
@@ -378,12 +356,30 @@ def compute_rKL(_top_df, _orig_df, sort_col=None, group_col="GR", cut_off=10, lo
         res += KL_divergence(ci_p_list, ci_q_list, log_base=log_base) / math.log(ci + 1, log_base)
     return res
 
+def change_in_rKL(rKL1, rank2, groups, cut_off=10, log_base=2):
+    rKL2 = compute_rKL(rank=rank2, groups=groups, cut_off=cut_off, log_base=log_base)
+    return rKL2 - rKL1
 
+def compute_igf_ratio(rank2, groups=None, which_group=None, k=None):
 
-def compute_igf_ratio(top_k_IDS, _orig_df, _orig_sort_col):
-    # assume _orig_df is sorted according to the _orig_sort_col
-    cur_res = min(_orig_df[_orig_df["UID"].isin(top_k_IDS)][_orig_sort_col]) / max(_orig_df[~_orig_df["UID"].isin(top_k_IDS)][_orig_sort_col])
-    if cur_res > 1:
+    if not k:
+        k=int(0.2*len(rank2))
+
+    sorted_ind = np.argsort(-1*rank2)
+    topk_ids = sorted_ind[:k].values
+
+    if which_group:
+        topk_ids = topk_ids[groups[topk_ids]==which_group]
+
+    if len(topk_ids)==0:
+        return 1
+        
+    min_accept = min(rank2[rank2.index.isin(topk_ids)].values)
+    max_reject = max(rank2[~rank2.index.isin(topk_ids)].values)
+
+    igf_ratio = min_accept/max_reject
+
+    if igf_ratio > 1:
         return 1
     else:
-        return cur_res
+        return igf_ratio

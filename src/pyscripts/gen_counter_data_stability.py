@@ -6,8 +6,10 @@ from utils.basic_utils import writeToCSV
 def get_counterfactual_data(args):
 
     # Create list of groups to produce counterfactual data for
-    # BF included as default
+    # BF included as default, removed only if no_cf_bf flag is set
     cf_groups = ['bf']
+    if args.no_cf_bf:
+        cf_groups.remove('bf')
     if args.cf_wm:
         cf_groups.append('wm')
     if args.cf_bm:
@@ -16,8 +18,6 @@ def get_counterfactual_data(args):
         cf_groups.append('am')
     if args.cf_wf:
         cf_groups.append('wf')
-    if args.no_cf_bf:
-        cf_groups.remove('bf')
     if args.cf_af:
         cf_groups.append('af')
 
@@ -67,6 +67,16 @@ def get_counterfactual_data(args):
         
         # Loop through groups to produce CF data for
         for group in cf_groups:
+
+            if group not in this_df['a'].unique():
+                if len(cf_groups)==1:
+                    new_group = this_df['a'].unique()[0]
+                    print('WARNING! {} group not present in sample. Cannot perform requested counterfactual intervention. \
+                            Will performing A<-{} intevention instead.'.format(group, new_group))
+                    group=new_group
+                else:
+                    print('WARNING! {} group not present in sample. Cannot perform requested counterfactual intervention. \
+                            Moving on to next intervention group.'.format(group))
             
             # Get baseline X prediction for A <- group
             counter_base_x = x_params[group]
@@ -109,14 +119,14 @@ if __name__ == "__main__":
 
     # Optional argument
     parser.add_argument("--output_dir", type=str, default='default')
+    parser.add_argument("--no_cf_bf", action='store_true', 
+                        help='boolean flag, will NOT calculate counterfactual data for A<-black female if set to True')
     parser.add_argument("--cf_bm", action='store_true', 
                         help='boolean flag, will calculate counterfactual data for A<-black male if set to True')
     parser.add_argument("--cf_wm", action='store_true', 
                         help='boolean flag, will calculate counterfactual data for A<-white male if set to True')
     parser.add_argument("--cf_am", action='store_true', 
                         help='boolean flag, will calculate counterfactual data for A<-asian male if set to True')
-    parser.add_argument("--no_cf_bf", action='store_true', 
-                        help='boolean flag, will NOT calculate counterfactual data for A<-black female if set to True')
     parser.add_argument("--cf_wf", action='store_true', 
                         help='boolean flag, will calculate counterfactual data for A<-white female if set to True')
     parser.add_argument("--cf_af", action='store_true', 
